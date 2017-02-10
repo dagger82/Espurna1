@@ -25,6 +25,7 @@ void otaSetup() {
     ArduinoOTA.onStart([]() {
         DEBUG_MSG("[OTA] Start\n");
         wsSend("{\"message\": \"OTA update started\"}");
+        DEBUG_WS(false);
     });
 
     ArduinoOTA.onEnd([]() {

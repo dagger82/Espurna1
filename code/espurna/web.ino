@@ -39,12 +39,10 @@ std::vector<web_api_t> _apis;
 // -----------------------------------------------------------------------------
 
 bool wsSend(const char * payload) {
-    DEBUG_MSG("[WEBSOCKET] Broadcasting '%s'\n", payload);
     ws.textAll(payload);
 }
 
 bool wsSend(uint32_t client_id, const char * payload) {
-    DEBUG_MSG("[WEBSOCKET] Sending '%s' to #%ld\n", payload, client_id);
     ws.text(client_id, payload);
 }
 
@@ -83,6 +81,8 @@ void _wsParse(uint32_t client_id, uint8_t * payload, size_t length) {
 
         DEBUG_MSG("[WEBSOCKET] Requested action: %s\n", action.c_str());
 
+        if (action.equals("debug")) DEBUG_WS(client_id, true);
+        if (action.equals("no-debug")) DEBUG_WS(client_id, false);
         if (action.equals("reset")) ESP.reset();
         if (action.equals("reconnect")) {
 
@@ -455,6 +455,7 @@ void _wsEvent(AsyncWebSocket * server, AsyncWebSocketClient * client, AwsEventTy
         DEBUG_MSG("[WEBSOCKET] #%u connected, ip: %d.%d.%d.%d, url: %s\n", client->id(), ip[0], ip[1], ip[2], ip[3], server->url());
         _wsStart(client->id());
     } else if(type == WS_EVT_DISCONNECT) {
+        DEBUG_WS(client->id(), false);
         DEBUG_MSG("[WEBSOCKET] #%u disconnected\n", client->id());
     } else if(type == WS_EVT_ERROR) {
         DEBUG_MSG("[WEBSOCKET] #%u error(%u): %s\n", client->id(), *((uint16_t*)arg), (char*)data);

@@ -110,14 +110,13 @@ void _mqttOnMessage(char* topic, char* payload, AsyncMqttClientMessageProperties
     char message[len+1];
     strlcpy(message, payload, len+1);
 
-    DEBUG_MSG("[MQTT] Received %s => %s", topic, message);
+    DEBUG_MSG("[MQTT] Received %s => %s\n", topic, message);
     #if MQTT_SKIP_RETAINED
         if (millis() - mqttConnectedAt < MQTT_SKIP_TIME) {
-			DEBUG_MSG(" - SKIPPED\n");
+			DEBUG_MSG("[MQTT] Message SKIPPED\n");
 			return;
 		}
     #endif
-	DEBUG_MSG("\n");
 
     // Check system topics
     char * p = mqttSubtopic(topic);
@@ -165,15 +164,15 @@ void mqttConnect() {
         char * user = strdup(getSetting("mqttUser").c_str());
         char * pass = strdup(getSetting("mqttPassword").c_str());
 
-        DEBUG_MSG("[MQTT] Connecting to broker at %s", host);
         mqtt.setServer(host, port);
         mqtt.setKeepAlive(MQTT_KEEPALIVE).setCleanSession(false);
 	    mqtt.setWill((mqttTopic + MQTT_HEARTBEAT_TOPIC).c_str(), MQTT_QOS, MQTT_RETAIN, "0");
         if ((strlen(user) > 0) && (strlen(pass) > 0)) {
-            DEBUG_MSG(" as user '%s'.", user);
+            DEBUG_MSG("[MQTT] Connecting to broker at %s as user '%s'\n", host, user);
             mqtt.setCredentials(user, pass);
+        } else {
+            DEBUG_MSG("[MQTT] Connecting to broker at %s\n", host);
         }
-        DEBUG_MSG("\n");
         mqtt.connect();
 
     }
