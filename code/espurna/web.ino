@@ -16,7 +16,11 @@ Copyright (C) 2016-2017 by Xose Pérez <xose dot perez at gmail dot com>
 #include <Ticker.h>
 #include <vector>
 
-AsyncWebServer server(80);
+#if EMBED_WEB_IN_FIRMWARE == 1
+#include "config/data.h"
+#endif
+
+AsyncWebServer * _server;
 AsyncWebSocket ws("/ws");
 Ticker deferred;
 
@@ -101,6 +105,8 @@ void _wsParse(uint32_t client_id, uint8_t * payload, size_t length) {
         JsonArray& config = root["config"];
         DEBUG_MSG("[WEBSOCKET] Parsing configuration data\n");
 
+        unsigned char webMode = WEB_MODE_NORMAL;
+
         bool save = false;
         bool changed = false;
         bool changedMQTT = false;
@@ -156,6 +162,20 @@ void _wsParse(uint32_t client_id, uint8_t * payload, size_t length) {
                 if (key.startsWith("dcz")) continue;
 
             #endif
+
+            // Web portions
+            if (key == "webPort") {
+                if ((value.toInt() == 0) || (value.toInt() == 80)) {
+                    save = changed = true;
+                    delSetting(key);
+                    continue;
+                }
+            }
+
+            if (key == "webMode") {
+                webMode = value.toInt();
+                continue;
+            }
 
             // Check password
             if (key == "adminPass1") {
@@ -213,36 +233,47 @@ void _wsParse(uint32_t client_id, uint8_t * payload, size_t length) {
 
         }
 
-        // Checkboxes
-        if (apiEnabled != (getSetting("apiEnabled").toInt() == 1)) {
-            setSetting("apiEnabled", apiEnabled);
-            save = changed = true;
-        }
-        #if ENABLE_FAUXMO
-            if (fauxmoEnabled != (getSetting("fauxmoEnabled").toInt() == 1)) {
-                setSetting("fauxmoEnabled", fauxmoEnabled);
-                save = changed = true;
-            }
-        #endif
+        if (webMode == WEB_MODE_NORMAL) {
 
-        // Clean wifi networks
-        for (int i = 0; i < network; i++) {
-            if (getSetting("pass" + String(i)).length() == 0) delSetting("pass" + String(i));
-            if (getSetting("ip" + String(i)).length() == 0) delSetting("ip" + String(i));
-            if (getSetting("gw" + String(i)).length() == 0) delSetting("gw" + String(i));
-            if (getSetting("mask" + String(i)).length() == 0) delSetting("mask" + String(i));
-            if (getSetting("dns" + String(i)).length() == 0) delSetting("dns" + String(i));
-        }
-        for (int i = network; i<WIFI_MAX_NETWORKS; i++) {
-            if (getSetting("ssid" + String(i)).length() > 0) {
+            // Checkboxes
+            if (apiEnabled != (getSetting("apiEnabled").toInt() == 1)) {
+                setSetting("apiEnabled", apiEnabled);
                 save = changed = true;
             }
-            delSetting("ssid" + String(i));
-            delSetting("pass" + String(i));
-            delSetting("ip" + String(i));
-            delSetting("gw" + String(i));
-            delSetting("mask" + String(i));
-            delSetting("dns" + String(i));
+            #if ENABLE_FAUXMO
+                if (fauxmoEnabled != (getSetting("fauxmoEnabled").toInt() == 1)) {
+                    setSetting("fauxmoEnabled", fauxmoEnabled);
+                    save = changed = true;
+                }
+            #endif
+
+            // Clean wifi networks
+            int i = 0;
+            while (i < network) {
+                if (getSetting("ssid" + String(i)).length() == 0) {
+                    delSetting("ssid" + String(i));
+                    break;
+                }
+                if (getSetting("pass" + String(i)).length() == 0) delSetting("pass" + String(i));
+                if (getSetting("ip" + String(i)).length() == 0) delSetting("ip" + String(i));
+                if (getSetting("gw" + String(i)).length() == 0) delSetting("gw" + String(i));
+                if (getSetting("mask" + String(i)).length() == 0) delSetting("mask" + String(i));
+                if (getSetting("dns" + String(i)).length() == 0) delSetting("dns" + String(i));
+                ++i;
+            }
+            while (i < WIFI_MAX_NETWORKS) {
+                if (getSetting("ssid" + String(i)).length() > 0) {
+                    save = changed = true;
+                }
+                delSetting("ssid" + String(i));
+                delSetting("pass" + String(i));
+                delSetting("ip" + String(i));
+                delSetting("gw" + String(i));
+                delSetting("mask" + String(i));
+                delSetting("dns" + String(i));
+                ++i;
+            }
+
         }
 
         // Save settings
@@ -262,11 +293,6 @@ void _wsParse(uint32_t client_id, uint8_t * payload, size_t length) {
 
             #if ENABLE_EMON
                 setCurrentRatio(getSetting("emonRatio").toFloat());
-            #endif
-
-            #if ITEAD_1CH_INCHING
-                byte relayPulseMode = getSetting("relayPulseMode", String(RELAY_PULSE_MODE)).toInt();
-                digitalWrite(LED_PULSE, relayPulseMode != RELAY_PULSE_NONE);
             #endif
 
             // Check if we should reconfigure MQTT connection
@@ -293,126 +319,146 @@ void _wsStart(uint32_t client_id) {
     DynamicJsonBuffer jsonBuffer;
     JsonObject& root = jsonBuffer.createObject();
 
-    root["app"] = APP_NAME;
-    root["version"] = APP_VERSION;
-    root["buildDate"] = __DATE__;
-    root["buildTime"] = __TIME__;
+    bool changePassword = false;
+    #if FORCE_CHANGE_PASS == 1
+        String adminPass = getSetting("adminPass", ADMIN_PASS);
+        if (adminPass.equals(ADMIN_PASS)) changePassword = true;
+    #endif
 
-    root["manufacturer"] = String(MANUFACTURER);
-    root["chipid"] = chipid;
-    root["mac"] = WiFi.macAddress();
-    root["device"] = String(DEVICE);
-    root["hostname"] = getSetting("hostname", HOSTNAME);
-    root["network"] = getNetwork();
-    root["deviceip"] = getIP();
+    if (changePassword) {
 
-    root["mqttStatus"] = mqttConnected();
-    root["mqttServer"] = getSetting("mqttServer", MQTT_SERVER);
-    root["mqttPort"] = getSetting("mqttPort", MQTT_PORT);
-    root["mqttUser"] = getSetting("mqttUser");
-    root["mqttPassword"] = getSetting("mqttPassword");
-    root["mqttTopic"] = getSetting("mqttTopic", MQTT_TOPIC);
+        root["webMode"] = WEB_MODE_PASSWORD;
 
-    JsonArray& relay = root.createNestedArray("relayStatus");
-    for (unsigned char relayID=0; relayID<relayCount(); relayID++) {
-        relay.add(relayStatus(relayID));
-    }
-    root["relayMode"] = getSetting("relayMode", RELAY_MODE);
-    root["relayPulseMode"] = getSetting("relayPulseMode", RELAY_PULSE_MODE);
-    root["relayPulseTime"] = getSetting("relayPulseTime", RELAY_PULSE_TIME);
-    if (relayCount() > 1) {
-        root["multirelayVisible"] = 1;
-        root["relaySync"] = getSetting("relaySync", RELAY_SYNC);
-    }
+    } else {
 
-    root["apiEnabled"] = getSetting("apiEnabled").toInt() == 1;
-    root["apiKey"] = getSetting("apiKey");
+        root["webMode"] = WEB_MODE_NORMAL;
 
-    #if ENABLE_DOMOTICZ
+        root["app"] = APP_NAME;
+        root["version"] = APP_VERSION;
+        root["buildDate"] = __DATE__;
+        root["buildTime"] = __TIME__;
 
-        root["dczVisible"] = 1;
-        root["dczTopicIn"] = getSetting("dczTopicIn", DOMOTICZ_IN_TOPIC);
-        root["dczTopicOut"] = getSetting("dczTopicOut", DOMOTICZ_OUT_TOPIC);
+        root["manufacturer"] = String(MANUFACTURER);
+        root["chipid"] = chipid;
+        root["mac"] = WiFi.macAddress();
+        root["device"] = String(DEVICE);
+        root["hostname"] = getSetting("hostname", HOSTNAME);
+        root["network"] = getNetwork();
+        root["deviceip"] = getIP();
 
-        JsonArray& dczRelayIdx = root.createNestedArray("dczRelayIdx");
-        for (byte i=0; i<relayCount(); i++) {
-            dczRelayIdx.add(relayToIdx(i));
+        root["mqttStatus"] = mqttConnected();
+        root["mqttServer"] = getSetting("mqttServer", MQTT_SERVER);
+        root["mqttPort"] = getSetting("mqttPort", MQTT_PORT);
+        root["mqttUser"] = getSetting("mqttUser");
+        root["mqttPassword"] = getSetting("mqttPassword");
+        root["mqttTopic"] = getSetting("mqttTopic", MQTT_TOPIC);
+
+        JsonArray& relay = root.createNestedArray("relayStatus");
+        for (unsigned char relayID=0; relayID<relayCount(); relayID++) {
+            relay.add(relayStatus(relayID));
+        }
+        root["relayMode"] = getSetting("relayMode", RELAY_MODE);
+        root["relayPulseMode"] = getSetting("relayPulseMode", RELAY_PULSE_MODE);
+        root["relayPulseTime"] = getSetting("relayPulseTime", RELAY_PULSE_TIME);
+        if (relayCount() > 1) {
+            root["multirelayVisible"] = 1;
+            root["relaySync"] = getSetting("relaySync", RELAY_SYNC);
         }
 
-        #if ENABLE_DHT
-            root["dczTmpIdx"] = getSetting("dczTmpIdx").toInt();
-            root["dczHumIdx"] = getSetting("dczHumIdx").toInt();
+        root["webPort"] = getSetting("webPort", WEBSERVER_PORT).toInt();
+
+        root["apiEnabled"] = getSetting("apiEnabled").toInt() == 1;
+        root["apiKey"] = getSetting("apiKey");
+
+        root["tmpUnits"] = getSetting("tmpUnits", TMP_UNITS).toInt();
+
+        #if ENABLE_DOMOTICZ
+
+            root["dczVisible"] = 1;
+            root["dczTopicIn"] = getSetting("dczTopicIn", DOMOTICZ_IN_TOPIC);
+            root["dczTopicOut"] = getSetting("dczTopicOut", DOMOTICZ_OUT_TOPIC);
+
+            JsonArray& dczRelayIdx = root.createNestedArray("dczRelayIdx");
+            for (byte i=0; i<relayCount(); i++) {
+                dczRelayIdx.add(relayToIdx(i));
+            }
+
+            #if ENABLE_DHT
+                root["dczTmpIdx"] = getSetting("dczTmpIdx").toInt();
+                root["dczHumIdx"] = getSetting("dczHumIdx").toInt();
+            #endif
+
+            #if ENABLE_DS18B20
+                root["dczTmpIdx"] = getSetting("dczTmpIdx").toInt();
+            #endif
+
+            #if ENABLE_EMON
+                root["dczPowIdx"] = getSetting("dczPowIdx").toInt();
+                root["dczEnergyIdx"] = getSetting("dczEnergyIdx").toInt();
+                root["dczCurrentIdx"] = getSetting("dczCurrentIdx").toInt();
+            #endif
+
+            #if ENABLE_POW
+                root["dczPowIdx"] = getSetting("dczPowIdx").toInt();
+                root["dczEnergyIdx"] = getSetting("dczEnergyIdx").toInt();
+                root["dczVoltIdx"] = getSetting("dczVoltIdx").toInt();
+                root["dczCurrentIdx"] = getSetting("dczCurrentIdx").toInt();
+            #endif
+
+        #endif
+
+        #if ENABLE_FAUXMO
+            root["fauxmoVisible"] = 1;
+            root["fauxmoEnabled"] = getSetting("fauxmoEnabled", FAUXMO_ENABLED).toInt() == 1;
         #endif
 
         #if ENABLE_DS18B20
-            root["dczTmpIdx"] = getSetting("dczTmpIdx").toInt();
+            root["dsVisible"] = 1;
+            root["dsTmp"] = getDSTemperature();
+        #endif
+
+        #if ENABLE_DHT
+            root["dhtVisible"] = 1;
+            root["dhtTmp"] = getDHTTemperature();
+            root["dhtHum"] = getDHTHumidity();
+        #endif
+
+        #if ENABLE_RF
+            root["rfVisible"] = 1;
+            root["rfChannel"] = getSetting("rfChannel", RF_CHANNEL);
+            root["rfDevice"] = getSetting("rfDevice", RF_DEVICE);
         #endif
 
         #if ENABLE_EMON
-            root["dczPowIdx"] = getSetting("dczPowIdx").toInt();
-            root["dczEnergyIdx"] = getSetting("dczEnergyIdx").toInt();
-            root["dczCurrentIdx"] = getSetting("dczCurrentIdx").toInt();
+            root["emonVisible"] = 1;
+            root["emonPower"] = getPower();
+            root["emonMains"] = getSetting("emonMains", EMON_MAINS_VOLTAGE);
+            root["emonRatio"] = getSetting("emonRatio", EMON_CURRENT_RATIO);
         #endif
 
         #if ENABLE_POW
-            root["dczPowIdx"] = getSetting("dczPowIdx").toInt();
-            root["dczEnergyIdx"] = getSetting("dczEnergyIdx").toInt();
-            root["dczVoltIdx"] = getSetting("dczVoltIdx").toInt();
-            root["dczCurrentIdx"] = getSetting("dczCurrentIdx").toInt();
+            root["powVisible"] = 1;
+            root["powActivePower"] = getActivePower();
+            root["powApparentPower"] = getApparentPower();
+            root["powReactivePower"] = getReactivePower();
+            root["powVoltage"] = getVoltage();
+            root["powCurrent"] = getCurrent();
+            root["powPowerFactor"] = getPowerFactor();
         #endif
 
-    #endif
+        root["maxNetworks"] = WIFI_MAX_NETWORKS;
+        JsonArray& wifi = root.createNestedArray("wifi");
+        for (byte i=0; i<WIFI_MAX_NETWORKS; i++) {
+            if (getSetting("ssid" + String(i)).length() == 0) break;
+            JsonObject& network = wifi.createNestedObject();
+            network["ssid"] = getSetting("ssid" + String(i));
+            network["pass"] = getSetting("pass" + String(i));
+            network["ip"] = getSetting("ip" + String(i));
+            network["gw"] = getSetting("gw" + String(i));
+            network["mask"] = getSetting("mask" + String(i));
+            network["dns"] = getSetting("dns" + String(i));
+        }
 
-    #if ENABLE_FAUXMO
-        root["fauxmoVisible"] = 1;
-        root["fauxmoEnabled"] = getSetting("fauxmoEnabled", FAUXMO_ENABLED).toInt() == 1;
-    #endif
-
-    #if ENABLE_DS18B20
-        root["dsVisible"] = 1;
-        root["dsTmp"] = getDSTemperature();
-    #endif
-
-    #if ENABLE_DHT
-        root["dhtVisible"] = 1;
-        root["dhtTmp"] = getDHTTemperature();
-        root["dhtHum"] = getDHTHumidity();
-    #endif
-
-    #if ENABLE_RF
-        root["rfVisible"] = 1;
-        root["rfChannel"] = getSetting("rfChannel", RF_CHANNEL);
-        root["rfDevice"] = getSetting("rfDevice", RF_DEVICE);
-    #endif
-
-    #if ENABLE_EMON
-        root["emonVisible"] = 1;
-        root["emonPower"] = getPower();
-        root["emonMains"] = getSetting("emonMains", EMON_MAINS_VOLTAGE);
-        root["emonRatio"] = getSetting("emonRatio", EMON_CURRENT_RATIO);
-    #endif
-
-    #if ENABLE_POW
-        root["powVisible"] = 1;
-        root["powActivePower"] = getActivePower();
-        root["powApparentPower"] = getApparentPower();
-        root["powReactivePower"] = getReactivePower();
-        root["powVoltage"] = getVoltage();
-        root["powCurrent"] = getCurrent();
-        root["powPowerFactor"] = getPowerFactor();
-    #endif
-
-    root["maxNetworks"] = WIFI_MAX_NETWORKS;
-    JsonArray& wifi = root.createNestedArray("wifi");
-    for (byte i=0; i<WIFI_MAX_NETWORKS; i++) {
-        if (getSetting("ssid" + String(i)).length() == 0) break;
-        JsonObject& network = wifi.createNestedObject();
-        network["ssid"] = getSetting("ssid" + String(i));
-        network["pass"] = getSetting("pass" + String(i));
-        network["ip"] = getSetting("ip" + String(i));
-        network["gw"] = getSetting("gw" + String(i));
-        network["mask"] = getSetting("mask" + String(i));
-        network["dns"] = getSetting("dns" + String(i));
     }
 
     String output;
@@ -467,9 +513,7 @@ void _wsEvent(AsyncWebSocket * server, AsyncWebSocketClient * client, AwsEventTy
 
         // First packet
         if (info->index == 0) {
-            //Serial.printf("Before malloc: %d\n", ESP.getFreeHeap());
             message = (uint8_t*) malloc(info->len);
-            //Serial.printf("After malloc: %d\n", ESP.getFreeHeap());
         }
 
         // Store data
@@ -478,9 +522,7 @@ void _wsEvent(AsyncWebSocket * server, AsyncWebSocketClient * client, AwsEventTy
         // Last packet
         if (info->index + len == info->len) {
             _wsParse(client->id(), message, info->len);
-            //Serial.printf("Before free: %d\n", ESP.getFreeHeap());
             free(message);
-            //Serial.printf("After free: %d\n", ESP.getFreeHeap());
         }
 
     }
@@ -546,9 +588,9 @@ ArRequestHandlerFunction _bindAPI(unsigned int apiID) {
         bool asJson = _asJson(request);
 
         web_api_t api = _apis[apiID];
-        if (request->method() == HTTP_PUT) {
-            if (request->hasParam("value", true)) {
-                AsyncWebParameter* p = request->getParam("value", true);
+        if (api.putFn != NULL) {
+            if (request->hasParam("value", request->method() == HTTP_PUT)) {
+                AsyncWebParameter* p = request->getParam("value", request->method() == HTTP_PUT);
                 (api.putFn)((p->value()).c_str());
             }
         }
@@ -585,7 +627,7 @@ void apiRegister(const char * url, const char * key, apiGetCallbackFunction getF
     // Bind call
     unsigned int methods = HTTP_GET;
     if (putFn != NULL) methods += HTTP_PUT;
-    server.on(url, methods, _bindAPI(_apis.size() - 1));
+    _server->on(url, methods, _bindAPI(_apis.size() - 1));
 
 }
 
@@ -642,28 +684,9 @@ void _onRPC(AsyncWebServerRequest *request) {
 
 }
 
-void _onHome(AsyncWebServerRequest *request) {
-
-    webLogRequest(request);
-
-    if (!_authenticate(request)) return request->requestAuthentication();
-
-    #if FORCE_CHANGE_PASS == 1
-        String password = getSetting("adminPass", ADMIN_PASS);
-        if (password.equals(ADMIN_PASS)) {
-            request->send(SPIFFS, "/password.html");
-        } else {
-            request->send(SPIFFS, "/index.html");
-        }
-    #else
-        request->send(SPIFFS, "/index.html");
-    #endif
-}
-
 void _onAuth(AsyncWebServerRequest *request) {
 
     webLogRequest(request);
-
     if (!_authenticate(request)) return request->requestAuthentication();
 
     IPAddress ip = request->client()->remoteIP();
@@ -684,37 +707,55 @@ void _onAuth(AsyncWebServerRequest *request) {
 
 }
 
-AsyncWebServer * getServer() {
-    return &server;
+#if EMBED_WEB_IN_FIRMWARE == 1
+void _onHome(AsyncWebServerRequest *request) {
+    AsyncWebServerResponse *response = request->beginResponse_P(200, "text/html", index_html_gz, index_html_gz_len);
+    response->addHeader("Content-Encoding", "gzip");
+    request->send(response);
 }
+#endif
 
 void webSetup() {
+
+    // Create server
+    _server = new AsyncWebServer(getSetting("webPort", WEBSERVER_PORT).toInt());
 
     // Setup websocket
     ws.onEvent(_wsEvent);
     mqttRegister(wsMQTTCallback);
 
     // Setup webserver
-    server.addHandler(&ws);
+    _server->addHandler(&ws);
+
+    // Rewrites
+    _server->rewrite("/", "/index.html");
 
     // Serve home (basic authentication protection)
-    server.on("/", HTTP_GET, _onHome);
-    server.on("/index.html", HTTP_GET, _onHome);
-    server.on("/auth", HTTP_GET, _onAuth);
-    server.on("/apis", HTTP_GET, _onAPIs);
-    server.on("/rpc", HTTP_GET, _onRPC);
+    #if EMBED_WEB_IN_FIRMWARE == 1
+    _server->on("/index.html", HTTP_GET, _onHome);
+    #endif
+    _server->on("/auth", HTTP_GET, _onAuth);
+    _server->on("/apis", HTTP_GET, _onAPIs);
+    _server->on("/rpc", HTTP_GET, _onRPC);
 
     // Serve static files
-    char lastModified[50];
-    sprintf(lastModified, "%s %s GMT", __DATE__, __TIME__);
-    server.serveStatic("/", SPIFFS, "/").setLastModified(lastModified);
+    #if EMBED_WEB_IN_FIRMWARE == 0
+        char lastModified[50];
+        sprintf(lastModified, "%s %s GMT", __DATE__, __TIME__);
+        _server->serveStatic("/", SPIFFS, "/")
+            .setLastModified(lastModified)
+            .setFilter([](AsyncWebServerRequest *request) -> bool {
+                webLogRequest(request);
+                return true;
+            });
+    #endif
 
     // 404
-    server.onNotFound([](AsyncWebServerRequest *request){
+    _server->onNotFound([](AsyncWebServerRequest *request){
         request->send(404);
     });
 
     // Run server
-    server.begin();
+    _server->begin();
 
 }

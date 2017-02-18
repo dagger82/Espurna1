@@ -96,10 +96,6 @@ void relayPulseMode(unsigned int value, bool report) {
     sprintf(message, "{\"relayPulseMode\": %d}", value);
     wsSend(message);
 
-    #ifdef LED_PULSE
-        digitalWrite(LED_PULSE, value != RELAY_PULSE_NONE);
-    #endif
-
 }
 
 void relayPulseMode(unsigned int value) {
@@ -257,7 +253,8 @@ void relaySetupAPI() {
                 } else {
                     relayStatus(relayID, value == 1);
                 }
-            });
+            }
+        );
 
     }
 

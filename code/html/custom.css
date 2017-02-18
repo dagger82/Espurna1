@@ -28,6 +28,7 @@
     width: 100px;
     margin: 5px auto;
 }
+.button-update-password,
 .button-update {
     background: #1f8dd6;
 }
@@ -92,4 +93,18 @@ div.hint {
     border-radius: 10px 10px 0px 10px;
     border: 1px solid lightgrey;
     padding: 10px;
+}
+.webmode {
+    display: none;
+}
+#credentials {
+    font-size: 200%;
+    text-align: center;
+    height: 100px;
+    width: 400px;
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    margin-top: -50px;
+    margin-left: -200px;
 }

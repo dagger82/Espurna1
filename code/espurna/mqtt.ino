@@ -138,8 +138,7 @@ void mqttConnect() {
 
     if (!mqtt.connected()) {
 
-        char * host = strdup(getSetting("mqttServer", MQTT_SERVER).c_str());
-        if (strlen(host) == 0) return;
+        if (getSetting("mqttServer", MQTT_SERVER).length() == 0) return;
 
         // Last option: reconnect to wifi after MQTT_MAX_TRIES attemps in a row
         #if MQTT_MAX_TRIES > 0
@@ -160,6 +159,7 @@ void mqttConnect() {
 
         mqtt.disconnect();
 
+        char * host = strdup(getSetting("mqttServer", MQTT_SERVER).c_str());
         unsigned int port = getSetting("mqttPort", MQTT_PORT).toInt();
         char * user = strdup(getSetting("mqttUser").c_str());
         char * pass = strdup(getSetting("mqttPassword").c_str());
@@ -174,6 +174,10 @@ void mqttConnect() {
             DEBUG_MSG("[MQTT] Connecting to broker at %s\n", host);
         }
         mqtt.connect();
+
+        free(host);
+        free(user);
+        free(pass);
 
     }
 
