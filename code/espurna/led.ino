@@ -7,7 +7,7 @@ Copyright (C) 2016-2017 by Xose Pérez <xose dot perez at gmail dot com>
 */
 
 // -----------------------------------------------------------------------------
-// LED
+// Cache
 // -----------------------------------------------------------------------------
 
 typedef struct {
@@ -16,7 +16,12 @@ typedef struct {
 } led_t;
 
 std::vector<led_t> _leds;
-bool ledAuto;
+bool _ledAuto;
+unsigned char _wifiLed = 0;
+
+// -----------------------------------------------------------------------------
+// LED
+// -----------------------------------------------------------------------------
 
 bool ledStatus(unsigned char id) {
     if (id >= _leds.size()) return false;
@@ -47,12 +52,12 @@ void ledBlink(unsigned char id, unsigned long delayOff, unsigned long delayOn) {
 void showStatus() {
     if (wifiConnected()) {
         if (WiFi.getMode() == WIFI_AP) {
-            ledBlink(0, 2500, 2500);
+            ledBlink(_wifiLed - 1, 2500, 2500);
         } else {
-            ledBlink(0, 4900, 100);
+            ledBlink(_wifiLed - 1, 4900, 100);
         }
     } else {
-        ledBlink(0, 500, 500);
+        ledBlink(_wifiLed - 1, 500, 500);
     }
 }
 
@@ -88,10 +93,10 @@ void ledMQTTCallback(unsigned int type, const char * topic, const char * payload
         bool bitAuto = (value & 0x02) > 0;
         bool bitState = (value & 0x01) > 0;
 
-        // Check ledAuto
+        // Check _ledAuto
         if (ledID == 0) {
-            ledAuto = bitAuto ? bitState : false;
-            setSetting("ledAuto", String() + (ledAuto ? "1" : "0"));
+            _ledAuto = bitAuto ? bitState : false;
+            setSetting("ledAuto", String() + (_ledAuto ? "1" : "0"));
             saveSettings();
             if (bitAuto) return;
         }
@@ -108,7 +113,9 @@ unsigned char ledCount() {
 }
 
 void ledConfigure() {
-    ledAuto = getSetting("ledAuto", String() + LED_AUTO).toInt() == 1;
+    _ledAuto = getSetting("ledAuto", String() + LED_AUTO).toInt() == 1;
+    _wifiLed = getSetting("wifiLed", String(1)).toInt();
+
 }
 
 void ledSetup() {
@@ -129,10 +136,15 @@ void ledSetup() {
     mqttRegister(ledMQTTCallback);
 
     DEBUG_MSG("[LED] Number of leds: %d\n", _leds.size());
-    DEBUG_MSG("[LED] Led auto indicator is %s\n", ledAuto ? "ON" : "OFF" );
+	if (_wifiLed == 0) {
+    	DEBUG_MSG("[LED] WiFi led indicator disabled\n");
+	} else {
+    	DEBUG_MSG("[LED] WiFi led indicator is %d\n", _wifiLed );
+	}
+    DEBUG_MSG("[LED] WiFi auto indicator is %s\n", _ledAuto ? "ON" : "OFF" );
 
 }
 
 void ledLoop() {
-    if (ledAuto) showStatus();
+    if (_ledAuto && (_wifiLed > 0)) showStatus();
 }

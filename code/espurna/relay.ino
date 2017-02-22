@@ -15,6 +15,7 @@ Copyright (C) 2016-2017 by Xose Pérez <xose dot perez at gmail dot com>
 typedef struct {
     unsigned char pin;
     bool reverse;
+    unsigned char led;
 } relay_t;
 std::vector<relay_t> _relays;
 
@@ -130,6 +131,10 @@ bool relayStatus(unsigned char id, bool status, bool report) {
 
         } else {
             digitalWrite(_relays[id].pin, _relays[id].reverse ? !status : status);
+        }
+
+        if (_relays[id].led > 0) {
+            ledStatus(_relays[id].led - 1, status);
         }
 
         if (report) relayMQTT(id);
@@ -429,7 +434,8 @@ void relaySetup() {
             unsigned char pin = getSetting("relayGPIO", index, GPIO_INVALID).toInt();
             if (pin == GPIO_INVALID) break;
             bool inverse = getSetting("relayLogic", index, 0).toInt() == 1;
-            _relays.push_back((relay_t) { pin, inverse });
+            unsigned char ledId = getSetting("relayLed", index, 0).toInt();
+            _relays.push_back((relay_t) { pin, inverse, ledId });
             ++index;
         }
 
