@@ -89,6 +89,27 @@ void _wsParse(uint32_t client_id, uint8_t * payload, size_t length) {
         DEBUG_MSG("[WEBSOCKET] Requested action: %s\n", action.c_str());
 
         if (action.equals("reset")) ESP.reset();
+        if (action.equals("restore") && root.containsKey("data")) {
+
+            JsonObject& data = root["data"];
+            if (!data.containsKey("app") || (data["app"] != APP_NAME)) {
+                ws.text(client_id, "{\"message\": \"The file does not look like a valid configuration backup.\"}");
+                return;
+            }
+
+            for (unsigned int i = EEPROM_DATA_END; i < SPI_FLASH_SEC_SIZE; i++) {
+                EEPROM.write(i, 0xFF);
+            }
+
+            for (auto element : data){
+                setSetting(element.key, element.value.as<char*>());
+            }
+
+            saveSettings();
+
+            ws.text(client_id, "{\"message\": \"Changes saved. You should reboot your board now.\"}");
+
+        }
         if (action.equals("reconnect")) {
 
             // Let the HTTP request return and disconnect after 100ms
@@ -827,6 +848,32 @@ void _onAuth(AsyncWebServerRequest *request) {
 
 }
 
+void _onGetConfig(AsyncWebServerRequest *request) {
+
+    webLogRequest(request);
+    if (!_authenticate(request)) return request->requestAuthentication();
+
+    AsyncJsonResponse * response = new AsyncJsonResponse();
+    JsonObject& root = response->getRoot();
+
+    root["app"] = APP_NAME;
+    root["version"] = APP_VERSION;
+
+    unsigned int size = settingsKeyCount();
+    for (unsigned int i=0; i<size; i++) {
+        String key = settingsKeyName(i);
+        String value = getSetting(key);
+        root[key] = value;
+    }
+
+    char buffer[100];
+    sprintf(buffer, "attachment; filename=\"%s-backup.json\"", (char *) getSetting("hostname").c_str());
+    response->addHeader("Content-Disposition", buffer);
+    response->setLength();
+    request->send(response);
+
+}
+
 #if EMBEDDED_WEB
 void _onHome(AsyncWebServerRequest *request) {
 
@@ -879,6 +926,7 @@ void webSetup() {
     #if EMBEDDED_WEB
         _server->on("/index.html", HTTP_GET, _onHome);
     #endif
+    _server->on("/config", HTTP_GET, _onGetConfig);
     _server->on("/auth", HTTP_GET, _onAuth);
 
     // Serve static files

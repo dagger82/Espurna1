@@ -39,6 +39,7 @@ It uses the Arduino Core for ESP8266 framework and a number of 3rd party librari
     * Web-based configuration
     * Relay switching and sensor data from the web interface
     * Websockets-based communication between the device and the browser
+    * Backup and restore settings option
 * **REST API** (enable/disable from web interface)
     * GET and PUT relay status
     * GET sensor data (power, current, voltage, temperature and humidity) depending on the available hardware

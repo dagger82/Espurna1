@@ -1,6 +1,8 @@
 var websock;
 var password = false;
 var maxNetworks;
+var host;
+var port;
 
 var numChanged = 0;
 var numReset = 0;
@@ -103,6 +105,45 @@ function doReconnect(ask) {
 function doToggle(element, value) {
     var relayID = parseInt(element.attr("data"));
     websock.send(JSON.stringify({'action': value ? 'on' : 'off', 'relayID': relayID}));
+    return false;
+}
+
+function backupSettings() {
+    document.getElementById('downloader').src = 'http://' + host + ':' + port + '/config';
+    return false;
+}
+
+function onFileUpload(event) {
+
+    var inputFiles = this.files;
+    if (inputFiles == undefined || inputFiles.length == 0) return false;
+    var inputFile = inputFiles[0];
+    this.value = "";
+
+    var response = window.confirm("Previous settings will be overwritten. Are you sure you want to restore this settings?");
+    if (response == false) return false;
+
+    var reader = new FileReader();
+    reader.onload = function(e) {
+        var data = getJson(e.target.result);
+        if (data) {
+            websock.send(JSON.stringify({'action': 'restore', 'data': data}));
+        } else {
+            alert("The file is not a configuration backup or is corrupted");
+        }
+    };
+    reader.readAsText(inputFile);
+
+    return false;
+
+}
+
+function restoreSettings() {
+    if (typeof window.FileReader !== 'function') {
+        alert("The file API isn't supported on this browser yet.");
+    } else {
+        $("#uploader").click();
+    }
     return false;
 }
 
@@ -413,13 +454,17 @@ function getJson(str) {
     }
 }
 
-function connect(host, port) {
-    if (typeof host === 'undefined') {
-        host = window.location.hostname;
+function connect(h, p) {
+
+    if (typeof h === 'undefined') {
+        h = window.location.hostname;
     }
-    if (typeof port === 'undefined') {
-        port = location.port;
+    if (typeof p === 'undefined') {
+        p = location.port;
     }
+    host = h;
+    port = p;
+
     if (websock) websock.close();
     websock = new WebSocket('ws://' + host + ':' + port + '/ws');
     websock.onopen = function(evt) {
@@ -478,6 +523,9 @@ function init() {
     $(".button-update-password").on('click', doUpdatePassword);
     $(".button-reset").on('click', doReset);
     $(".button-reconnect").on('click', doReconnect);
+    $(".button-settings-backup").on('click', backupSettings);
+    $(".button-settings-restore").on('click', restoreSettings);
+    $('#uploader').on('change', onFileUpload);
     $(".button-apikey").on('click', doGenerateAPIKey);
     $(".pure-menu-link").on('click', showPanel);
     $(".button-add-network").on('click', function() {

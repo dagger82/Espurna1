@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 ### Changed
 - Soft-configuration: dynamically configure boards and sensors
 
+## [1.6.5] 2017-02-22
+### Added
+- Option to backup and restore settings from the web interface
+- Footer in the web interface
+
+### Changed
+- Using PubSubClient as MQTT client by default (please read the documentation)
+- Double & long clicks do nothing except for the first defined button
+
+### Fix
+- Issue #79. Fix bug in WiFi led notification & MQTT connectivity (using PubSubClient)
+- Issue #73. Fix bug when building without Domoticz support
+- Fix Gulp tasks dependencies
+
 ## [1.6.4] 2017-02-20
 ### Added
 - Option to embed the web interface in the firmware, disabled by default

@@ -13,6 +13,7 @@
 
 #define EEPROM_RELAY_STATUS     0
 #define EEPROM_ENERGY_COUNT     1
+#define EEPROM_DATA_END         5
 
 //--------------------------------------------------------------------------------
 // BUTTON
@@ -118,6 +119,10 @@
 // -----------------------------------------------------------------------------
 // MQTT
 // -----------------------------------------------------------------------------
+
+#ifndef MQTT_USE_ASYNC
+#define MQTT_USE_ASYNC          0
+#endif
 
 #define MQTT_SERVER             ""
 #define MQTT_PORT               1883
