@@ -60,6 +60,13 @@ String settingsKeyName(unsigned int index) {
 
 }
 
+void settingsFactoryReset() {
+    for (unsigned int i = 0; i < SPI_FLASH_SEC_SIZE; i++) {
+        EEPROM.write(i, 0xFF);
+    }
+    EEPROM.commit();
+}
+
 void settingsSetup() {
 
     EEPROM.begin(SPI_FLASH_SEC_SIZE);
@@ -89,7 +96,7 @@ void settingsSetup() {
 
     Embedis::command( F("RESET"), [](Embedis* e) {
         e->response(Embedis::OK);
-        ESP.reset();
+        ESP.restart();
     });
 
     Embedis::command( F("SAVE"), [](Embedis* e) {
@@ -112,30 +119,49 @@ void settingsSetup() {
         e->response(Embedis::OK);
     });
 
-    Embedis::command( F("STATUS"), [](Embedis* e) {
-        e->stream->printf("Free heap: %d bytes\n", ESP.getFreeHeap());
+    Embedis::command( F("FACTORY.RESET"), [](Embedis* e) {
+        settingsFactoryReset();
         e->response(Embedis::OK);
     });
 
-    Embedis::command( F("EEPROM.DUMP"), [](Embedis* e) {
-        for (unsigned int i = 0; i < SPI_FLASH_SEC_SIZE; i++) {
-            if (i % 16 == 0) e->stream->printf("\n[%04X] ", i);
-            e->stream->printf("%02X ", EEPROM.read(i));
+    Embedis::command( F("HEAP"), [](Embedis* e) {
+        e->stream->printf("Free HEAP: %d bytes\n", ESP.getFreeHeap());
+        e->response(Embedis::OK);
+    });
+
+    Embedis::command( F("RELAY"), [](Embedis* e) {
+        if (e->argc < 2) {
+            return e->response(Embedis::ARGS_ERROR);
         }
-        e->stream->printf("\n");
-        e->response(Embedis::OK);
-    });
-
-    Embedis::command( F("EEPROM.ERASE"), [](Embedis* e) {
-        for (unsigned int i = 0; i < SPI_FLASH_SEC_SIZE; i++) {
-            EEPROM.write(i, 0xFF);
+        int id = String(e->argv[1]).toInt();
+        if (e->argc > 2) {
+            int value = String(e->argv[2]).toInt();
+            if (value == 2) {
+                relayToggle(id);
+            } else {
+                relayStatus(id, value == 1);
+            }
         }
-        EEPROM.commit();
+        e->stream->printf("Status: %s\n", relayStatus(id) ? "true" : "false");
         e->response(Embedis::OK);
     });
 
-    Embedis::command( F("SETTINGS.SIZE"), [](Embedis* e) {
-        e->response(String(settingsSize()));
+    if (getSetting("lightProvider", LIGHT_PROVIDER_NONE).toInt() != LIGHT_PROVIDER_NONE) {
+        Embedis::command( F("COLOR"), [](Embedis* e) {
+            if (e->argc > 1) {
+                String color = String(e->argv[1]);
+                lightColor(color.c_str(), true, true);
+            }
+            e->stream->printf("Color: %s\n", lightColor().c_str());
+            e->response(Embedis::OK);
+        });
+    }
+
+    Embedis::command( F("EEPROM"), [](Embedis* e) {
+        unsigned long freeEEPROM = SPI_FLASH_SEC_SIZE - settingsSize();
+        e->stream->printf("Number of keys: %d\n", settingsKeyCount());
+        e->stream->printf("Free EEPROM: %d bytes (%d%%)\n", freeEEPROM, 100 * freeEEPROM / SPI_FLASH_SEC_SIZE);
+        e->response(Embedis::OK);
     });
 
     Embedis::command( F("DUMP"), [](Embedis* e) {
@@ -148,8 +174,17 @@ void settingsSetup() {
         e->response(Embedis::OK);
     });
 
-    DEBUG_MSG("[SETTINGS] EEPROM size: %d bytes\n", SPI_FLASH_SEC_SIZE);
-    DEBUG_MSG("[SETTINGS] Settings size: %d bytes\n", settingsSize());
+    Embedis::command( F("DUMP.RAW"), [](Embedis* e) {
+        for (unsigned int i = 0; i < SPI_FLASH_SEC_SIZE; i++) {
+            if (i % 16 == 0) e->stream->printf("\n[%04X] ", i);
+            e->stream->printf("%02X ", EEPROM.read(i));
+        }
+        e->stream->printf("\n");
+        e->response(Embedis::OK);
+    });
+
+    DEBUG_MSG_P(PSTR("[SETTINGS] EEPROM size: %d bytes\n"), SPI_FLASH_SEC_SIZE);
+    DEBUG_MSG_P(PSTR("[SETTINGS] Settings size: %d bytes\n"), settingsSize());
 
 }
 
@@ -202,7 +237,7 @@ bool hasSetting(const String& key, unsigned int index) {
 }
 
 void saveSettings() {
-    DEBUG_MSG("[SETTINGS] Saving\n");
+    DEBUG_MSG_P(PSTR("[SETTINGS] Saving\n"));
     #if not AUTO_SAVE
         EEPROM.commit();
     #endif

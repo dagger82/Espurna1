@@ -51,6 +51,7 @@ void wifiConfigure() {
 
     jw.setHostname(getSetting("hostname", HOSTNAME).c_str());
     jw.setSoftAP(getSetting("hostname", HOSTNAME).c_str(), getSetting("adminPass", ADMIN_PASS).c_str());
+    jw.setReconnectTimeout(WIFI_RECONNECT_INTERVAL);
     jw.setAPMode(AP_MODE);
     jw.cleanNetworks();
 
@@ -120,7 +121,7 @@ void wifiSetup() {
     // Message callbacks
     jw.onMessage([](justwifi_messages_t code, char * parameter) {
 
-		#ifdef DEBUG_PORT
+		#if DEBUG_SERIAL | DEBUG_UDP
 
 		    if (code == MESSAGE_SCANNING) {
 		        DEBUG_MSG_P(PSTR("[WIFI] Scanning\n"));

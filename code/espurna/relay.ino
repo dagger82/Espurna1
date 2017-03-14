@@ -18,11 +18,59 @@ typedef struct {
     unsigned char led;
 } relay_t;
 std::vector<relay_t> _relays;
-
-unsigned char dualRelayStatus = 0;
 Ticker pulseTicker;
-
 bool recursive = false;
+unsigned char dualRelayStatus = 0;
+unsigned char _relayProvider;
+
+// -----------------------------------------------------------------------------
+// RELAY PROVIDERS
+// -----------------------------------------------------------------------------
+
+void relayProviderStatus(unsigned char id, bool status) {
+
+    if (_relayProvider == RELAY_PROVIDER_DUAL) {
+
+        dualRelayStatus ^= (1 << id);
+        Serial.flush();
+        Serial.write(0xA0);
+        Serial.write(0x04);
+        Serial.write(dualRelayStatus);
+        Serial.write(0xA1);
+        Serial.flush();
+
+    } else if (_relayProvider == RELAY_PROVIDER_LIGHT) {
+
+        lightState(status);
+
+    } else {
+
+        digitalWrite(_relays[id].pin, _relays[id].reverse ? !status : status);
+
+    }
+
+}
+
+bool relayProviderStatus(unsigned char id) {
+
+    if (_relayProvider == RELAY_PROVIDER_DUAL) {
+
+        if (id >= 2) return false;
+        return ((dualRelayStatus & (1 << id)) > 0);
+
+    } else if (_relayProvider == RELAY_PROVIDER_LIGHT) {
+
+        return lightState();
+
+    } else {
+
+        if (id >= _relays.size()) return false;
+        bool status = (digitalRead(_relays[id].pin) == HIGH);
+        return _relays[id].reverse ? !status : status;
+
+    }
+
+}
 
 // -----------------------------------------------------------------------------
 // RELAY
@@ -41,14 +89,7 @@ String relayString() {
 }
 
 bool relayStatus(unsigned char id) {
-    if (getBoard() == BOARD_ITEAD_SONOFF_DUAL) {
-        if (id >= 2) return false;
-        return ((dualRelayStatus & (1 << id)) > 0);
-    } else {
-        if (id >= _relays.size()) return false;
-        bool status = (digitalRead(_relays[id].pin) == HIGH);
-        return _relays[id].reverse ? !status : status;
-    }
+    return relayProviderStatus(id);
 }
 
 void relayPulse(unsigned char id) {
@@ -83,9 +124,8 @@ void relayPulseMode(unsigned int value, bool report) {
 
     /*
     if (report) {
-        String mqttGetter = getSetting("mqttGetter", MQTT_USE_GETTER);
-        char topic[strlen(MQTT_RELAY_TOPIC) + mqttGetter.length() + 10];
-        sprintf(topic, "%s/pulse%s", MQTT_RELAY_TOPIC, mqttGetter.c_str());
+        char topic[strlen(MQTT_TOPIC_RELAY) + 10];
+        sprintf(topic, "%s/pulse", MQTT_TOPIC_RELAY);
         char value[2];
         sprintf(value, "%d", value);
         mqttSend(topic, value);
@@ -116,22 +156,10 @@ bool relayStatus(unsigned char id, bool status, bool report) {
 
     if (relayStatus(id) != status) {
 
-        DEBUG_MSG("[RELAY] %d => %s\n", id, status ? "ON" : "OFF");
+        DEBUG_MSG_P(PSTR("[RELAY] %d => %s\n"), id, status ? "ON" : "OFF");
         changed = true;
 
-        if (getBoard() == BOARD_ITEAD_SONOFF_DUAL) {
-
-            dualRelayStatus ^= (1 << id);
-            Serial.flush();
-            Serial.write(0xA0);
-            Serial.write(0x04);
-            Serial.write(dualRelayStatus);
-            Serial.write(0xA1);
-            Serial.flush();
-
-        } else {
-            digitalWrite(_relays[id].pin, _relays[id].reverse ? !status : status);
-        }
+        relayProviderStatus(id, status);
 
         if (_relays[id].led > 0) {
             ledStatus(_relays[id].led - 1, status);
@@ -320,7 +348,7 @@ void relayDomoticzSetup() {
                 DynamicJsonBuffer jsonBuffer;
                 JsonObject& root = jsonBuffer.parseObject((char *) payload);
                 if (!root.success()) {
-                    DEBUG_MSG("[DOMOTICZ] Error parsing data\n");
+                    DEBUG_MSG_P(PSTR("[DOMOTICZ] Error parsing data\n"));
                     return;
                 }
 
@@ -329,7 +357,7 @@ void relayDomoticzSetup() {
                 int relayID = relayFromIdx(idx);
                 if (relayID >= 0) {
                     unsigned long value = root["nvalue"];
-                    DEBUG_MSG("[DOMOTICZ] Received value %d for IDX %d\n", value, idx);
+                    DEBUG_MSG_P(PSTR("[DOMOTICZ] Received value %d for IDX %d\n"), value, idx);
                     relayStatus(relayID, value == 1);
                 }
 
@@ -348,10 +376,7 @@ void relayDomoticzSetup() {
 
 void relayMQTT(unsigned char id) {
     if (id >= _relays.size()) return;
-    String mqttGetter = getSetting("mqttGetter", MQTT_USE_GETTER);
-    char buffer[strlen(MQTT_RELAY_TOPIC) + mqttGetter.length() + 3];
-    sprintf(buffer, "%s/%d%s", MQTT_RELAY_TOPIC, id, mqttGetter.c_str());
-    mqttSend(buffer, relayStatus(id) ? "1" : "0");
+    mqttSend(MQTT_TOPIC_RELAY, id, relayStatus(id) ? "1" : "0");
 }
 
 void relayMQTT() {
@@ -362,16 +387,14 @@ void relayMQTT() {
 
 void relayMQTTCallback(unsigned int type, const char * topic, const char * payload) {
 
-    String mqttSetter = getSetting("mqttSetter", MQTT_USE_SETTER);
-    String mqttGetter = getSetting("mqttGetter", MQTT_USE_GETTER);
-    bool sameSetGet = mqttGetter.compareTo(mqttSetter) == 0;
-
     if (type == MQTT_CONNECT_EVENT) {
 
-        relayMQTT();
-        char buffer[strlen(MQTT_RELAY_TOPIC) + mqttSetter.length() + 10];
+        #if not MQTT_REPORT_RELAY
+            relayMQTT();
+        #endif
 
-        sprintf(buffer, "%s/+%s", MQTT_RELAY_TOPIC, mqttSetter.c_str());
+        char buffer[strlen(MQTT_TOPIC_RELAY) + 3];
+        sprintf(buffer, "%s/+", MQTT_TOPIC_RELAY);
         mqttSubscribe(buffer);
 
     }
@@ -379,24 +402,22 @@ void relayMQTTCallback(unsigned int type, const char * topic, const char * paylo
     if (type == MQTT_MESSAGE_EVENT) {
 
         // Match topic
-        char * t = mqttSubtopic((char *) topic);
-        if (strncmp(t, MQTT_RELAY_TOPIC, strlen(MQTT_RELAY_TOPIC)) != 0) return;
-        int len = mqttSetter.length();
-        if (strncmp(t + strlen(t) - len, mqttSetter.c_str(), len) != 0) return;
+        String t = mqttSubtopic((char *) topic);
+        if (!t.startsWith(MQTT_TOPIC_RELAY)) return;
 
         // Get value
         unsigned int value = (char)payload[0] - '0';
 
         // Pulse topic
-        if (strncmp(t + strlen(MQTT_RELAY_TOPIC) + 1, "pulse", 5) == 0) {
-            relayPulseMode(value, !sameSetGet);
+        if (t.endsWith("pulse")) {
+            relayPulseMode(value, mqttForward());
             return;
         }
 
         // Get relay ID
-        unsigned int relayID = topic[strlen(topic) - mqttSetter.length() - 1] - '0';
+        unsigned int relayID = t.substring(strlen(MQTT_TOPIC_RELAY)+1).toInt();
         if (relayID >= relayCount()) {
-            DEBUG_MSG("[RELAY] Wrong relayID (%d)\n", relayID);
+            DEBUG_MSG_P(PSTR("[RELAY] Wrong relayID (%d)\n"), relayID);
             return;
         }
 
@@ -404,7 +425,7 @@ void relayMQTTCallback(unsigned int type, const char * topic, const char * paylo
         if (value == 2) {
             relayToggle(relayID);
         } else {
-            relayStatus(relayID, value > 0, !sameSetGet);
+            relayStatus(relayID, value > 0, mqttForward());
         }
 
     }
@@ -421,10 +442,17 @@ void relaySetupMQTT() {
 
 void relaySetup() {
 
-    if (getBoard() == BOARD_ITEAD_SONOFF_DUAL) {
+    _relayProvider = getSetting("relayProvider", RELAY_PROVIDER_RELAY).toInt();
+
+    if (_relayProvider == RELAY_PROVIDER_DUAL) {
 
         // Two dummy relays for the dual
         _relays.push_back((relay_t) {0, 0});
+        _relays.push_back((relay_t) {0, 0});
+
+    } else if (_relayProvider == RELAY_PROVIDER_LIGHT) {
+
+        // One dummy relay for lights
         _relays.push_back((relay_t) {0, 0});
 
     } else {
@@ -441,9 +469,7 @@ void relaySetup() {
 
     }
 
-    EEPROM.begin(4096);
     byte relayMode = getSetting("relayMode", RELAY_MODE).toInt();
-
     for (unsigned int i=0; i < _relays.size(); i++) {
         pinMode(_relays[i].pin, OUTPUT);
         if (relayMode == RELAY_MODE_OFF) relayStatus(i, false);
@@ -458,6 +484,6 @@ void relaySetup() {
         relayDomoticzSetup();
     #endif
 
-    DEBUG_MSG("[RELAY] Number of relays: %d\n", _relays.size());
+    DEBUG_MSG_P(PSTR("[RELAY] Number of relays: %d\n"), _relays.size());
 
 }

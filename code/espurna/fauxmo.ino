@@ -6,7 +6,7 @@ Copyright (C) 2016-2017 by Xose Pérez <xose dot perez at gmail dot com>
 
 */
 
-#if ENABLE_FAUXMO
+#if ENABLE_ALEXA
 
 #include <fauxmoESP.h>
 
@@ -32,7 +32,7 @@ void fauxmoSetup() {
         }
     }
     fauxmo.onMessage([relays](unsigned char device_id, const char * name, bool state) {
-        DEBUG_MSG("[FAUXMO] %s state: %s\n", name, state ? "ON" : "OFF");
+        DEBUG_MSG_P(PSTR("[FAUXMO] %s state: %s\n"), name, state ? "ON" : "OFF");
         relayStatus(device_id, state);
     });
 }

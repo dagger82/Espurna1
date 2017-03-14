@@ -49,13 +49,13 @@ void hlwActivate(bool status) {
             attachInterrupt(getSetting("hlwCF1GPIO", HLW8012_CF1_PIN).toInt(), hlw8012_cf1_interrupt, CHANGE);
             attachInterrupt(getSetting("hlwCFGPIO", HLW8012_CF_PIN).toInt(), hlw8012_cf_interrupt, CHANGE);
         #endif
-        DEBUG_MSG("[HLW8012] Enabled\n");
+        DEBUG_MSG_P(PSTR("[HLW8012] Enabled\n"));
     } else {
         #if HLW8012_USE_INTERRUPTS == 1
             detachInterrupt(getSetting("hlwCF1GPIO", HLW8012_CF1_PIN).toInt());
             detachInterrupt(getSetting("hlwCFGPIO", HLW8012_CF_PIN).toInt());
         #endif
-        DEBUG_MSG("[HLW8012] Disabled\n");
+        DEBUG_MSG_P(PSTR("[HLW8012] Disabled\n"));
     }
 
 }

@@ -24,6 +24,8 @@ typedef enum {
     BOARD_JANGOE_WIFI_RELAY_NO,
     BOARD_OPENENERGYMONITOR_MQTT_RELAY,
     BOARD_JORGE_GARCIA_WIFI_RELAYS_BOARD_KIT,
+    BOARD_AITHINKER_AILIGHT,
+    BOARD_MAGICHOME_LEDCONTROLLER,
 
     BOARD_LAST
 
@@ -39,6 +41,9 @@ PROGMEM const char man_workchoice[] = "WORKCHOICE";
 PROGMEM const char man_jangoe[] = "JAN GOEDEKE";
 PROGMEM const char man_openenergymonitor[] = "OPEN ENERGY MONITOR";
 PROGMEM const char man_jorgegarcia[] = "JORGE GARCIA";
+PROGMEM const char man_aithinker[] = "AI THINKER";
+PROGMEM const char man_magichome[] = "MAGIC HOME";
+
 
 PROGMEM const char* const manufacturers[] = {
     man_unknown,
@@ -60,7 +65,9 @@ PROGMEM const char* const manufacturers[] = {
     man_jangoe, // BOARD_JANGOE_WIFI_RELAY_NC
     man_jangoe, // BOARD_JANGOE_WIFI_RELAY_NO
     man_openenergymonitor, // BOARD_OPENENERGYMONITOR_MQTT_RELAY
-    man_jorgegarcia // BOARD_JORGE_GARCIA_WIFI_RELAYS_BOARD_KIT
+    man_jorgegarcia, // BOARD_JORGE_GARCIA_WIFI_RELAYS_BOARD_KIT
+    man_aithinker, // BOARD_AITHINKER_AILIGHT
+    man_magichome // BOARD_MAGICHOME_LEDCONTROLLER
 };
 
 const PROGMEM char board_unknown[] = "UNKNOWN";
@@ -83,6 +90,8 @@ const PROGMEM char board_jangoe_wifi_relay_nc[] = "WIFI RELAY NC";
 const PROGMEM char board_jangoe_wifi_relay_no[] = "WIFI RELAY NO";
 const PROGMEM char board_openenergymonitor_mqtt_relay[] = "MQTT RELAY";
 const PROGMEM char board_jorge_garcia_wifi_relays_board_kit[] = "WIFI + RELAYS BOARD KIT";
+const PROGMEM char board_aithinker_ailight[] = "AI LIGHT";
+const PROGMEM char board_magichome_ledcontroller[] = "LED CONTROLLER";
 
 const PROGMEM char * const boardnames[] = {
     board_unknown,
@@ -104,7 +113,9 @@ const PROGMEM char * const boardnames[] = {
     board_jangoe_wifi_relay_nc, // BOARD_JANGOE_WIFI_RELAY_NC
     board_jangoe_wifi_relay_no, // BOARD_JANGOE_WIFI_RELAY_NO
     board_openenergymonitor_mqtt_relay, // BOARD_OPENENERGYMONITOR_MQTT_RELAY
-    board_jorge_garcia_wifi_relays_board_kit // BOARD_JORGE_GARCIA_WIFI_RELAYS_BOARD_KIT
+    board_jorge_garcia_wifi_relays_board_kit, // BOARD_JORGE_GARCIA_WIFI_RELAYS_BOARD_KIT
+    board_aithinker_ailight, // BOARD_AITHINKER_AILIGHT
+    board_magichome_ledcontroller // BOARD_MAGICHOME_LEDCONTROLLER
 };
 
 #ifndef DEFAULT_BOARD

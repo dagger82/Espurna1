@@ -65,26 +65,22 @@ void ledMQTTCallback(unsigned int type, const char * topic, const char * payload
 
     static bool isFirstMessage = true;
 
-    String mqttSetter = getSetting("mqttSetter", MQTT_USE_SETTER);
-
     if (type == MQTT_CONNECT_EVENT) {
-        char buffer[strlen(MQTT_LED_TOPIC) + mqttSetter.length() + 3];
-        sprintf(buffer, "%s/+%s", MQTT_LED_TOPIC, mqttSetter.c_str());
+        char buffer[strlen(MQTT_TOPIC_LED) + 3];
+        sprintf(buffer, "%s/+", MQTT_TOPIC_LED);
         mqttSubscribe(buffer);
     }
 
     if (type == MQTT_MESSAGE_EVENT) {
 
         // Match topic
-        char * t = mqttSubtopic((char *) topic);
-        if (strncmp(t, MQTT_LED_TOPIC, strlen(MQTT_LED_TOPIC)) != 0) return;
-        int len = mqttSetter.length();
-        if (strncmp(t + strlen(t) - len, mqttSetter.c_str(), len) != 0) return;
+        String t = mqttSubtopic((char *) topic);
+        if (!t.startsWith(MQTT_TOPIC_LED)) return;
 
         // Get led ID
-        unsigned int ledID = topic[strlen(topic) - mqttSetter.length() - 1] - '0';
+        unsigned int ledID = t.substring(strlen(MQTT_TOPIC_LED)+1).toInt();
         if (ledID >= ledCount()) {
-            DEBUG_MSG("[LED] Wrong ledID (%d)\n", ledID);
+            DEBUG_MSG_P(PSTR("[LED] Wrong ledID (%d)\n"), ledID);
             return;
         }
 
@@ -135,13 +131,13 @@ void ledSetup() {
 
     mqttRegister(ledMQTTCallback);
 
-    DEBUG_MSG("[LED] Number of leds: %d\n", _leds.size());
+    DEBUG_MSG_P(PSTR("[LED] Number of leds: %d\n"), _leds.size());
 	if (_wifiLed == 0) {
-    	DEBUG_MSG("[LED] WiFi led indicator disabled\n");
+    	DEBUG_MSG_P(PSTR("[LED] WiFi led indicator disabled\n"));
 	} else {
-    	DEBUG_MSG("[LED] WiFi led indicator is %d\n", _wifiLed );
+    	DEBUG_MSG_P(PSTR("[LED] WiFi led indicator is %d\n"), _wifiLed );
 	}
-    DEBUG_MSG("[LED] WiFi auto indicator is %s\n", _ledAuto ? "ON" : "OFF" );
+    DEBUG_MSG_P(PSTR("[LED] WiFi auto indicator is %s\n"), _ledAuto ? "ON" : "OFF" );
 
 }
 

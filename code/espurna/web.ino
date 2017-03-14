@@ -44,12 +44,14 @@ char _last_modified[50];
 // -----------------------------------------------------------------------------
 
 bool wsSend(const char * payload) {
-    DEBUG_MSG("[WEBSOCKET] Broadcasting '%s'\n", payload);
-    ws.textAll(payload);
+    if (ws.count() > 0) {
+        DEBUG_MSG_P(PSTR("[WEBSOCKET] Broadcasting '%s'\n"), payload);
+        ws.textAll(payload);
+    }
 }
 
 bool wsSend(uint32_t client_id, const char * payload) {
-    DEBUG_MSG("[WEBSOCKET] Sending '%s' to #%ld\n", payload, client_id);
+    DEBUG_MSG_P(PSTR("[WEBSOCKET] Sending '%s' to #%ld\n"), payload, client_id);
     ws.text(client_id, payload);
 }
 
@@ -71,7 +73,7 @@ void _wsParse(uint32_t client_id, uint8_t * payload, size_t length) {
     DynamicJsonBuffer jsonBuffer;
     JsonObject& root = jsonBuffer.parseObject((char *) payload);
     if (!root.success()) {
-        DEBUG_MSG("[WEBSOCKET] Error parsing data\n");
+        DEBUG_MSG_P(PSTR("[WEBSOCKET] Error parsing data\n"));
         ws.text(client_id, "{\"message\": \"Error parsing data!\"}");
         return;
     }
@@ -80,15 +82,13 @@ void _wsParse(uint32_t client_id, uint8_t * payload, size_t length) {
     if (root.containsKey("action")) {
 
         String action = root["action"];
-        unsigned int relayID = 0;
-        if (root.containsKey("relayID")) {
-            String value = root["relayID"];
-            relayID = value.toInt();
+
+        DEBUG_MSG_P(PSTR("[WEBSOCKET] Requested action: %s\n"), action.c_str());
+
+        if (action.equals("reset")) {
+            ESP.restart();
         }
 
-        DEBUG_MSG("[WEBSOCKET] Requested action: %s\n", action.c_str());
-
-        if (action.equals("reset")) ESP.reset();
         if (action.equals("restore") && root.containsKey("data")) {
 
             JsonObject& data = root["data"];
@@ -101,7 +101,9 @@ void _wsParse(uint32_t client_id, uint8_t * payload, size_t length) {
                 EEPROM.write(i, 0xFF);
             }
 
-            for (auto element : data){
+            for (auto element : data) {
+                if (strcmp(element.key, "app") == 0) continue;
+                if (strcmp(element.key, "version") == 0) continue;
                 setSetting(element.key, element.value.as<char*>());
             }
 
@@ -110,14 +112,39 @@ void _wsParse(uint32_t client_id, uint8_t * payload, size_t length) {
             ws.text(client_id, "{\"message\": \"Changes saved. You should reboot your board now.\"}");
 
         }
+
         if (action.equals("reconnect")) {
 
             // Let the HTTP request return and disconnect after 100ms
             deferred.once_ms(100, wifiDisconnect);
 
         }
-        if (action.equals("on")) relayStatus(relayID, true);
-        if (action.equals("off")) relayStatus(relayID, false);
+
+        if (action.equals("relay") && root.containsKey("data")) {
+
+            JsonObject& data = root["data"];
+
+            if (data.containsKey("status")) {
+
+                bool state = (strcmp(data["status"], "1") == 0);
+
+                unsigned int relayID = 0;
+                if (data.containsKey("id")) {
+                    String value = data["id"];
+                    relayID = value.toInt();
+                }
+
+                relayStatus(relayID, state);
+
+            }
+
+        }
+
+        if (getSetting("lightProvider", LIGHT_PROVIDER_NONE).toInt() != LIGHT_PROVIDER_NONE) {
+            if (action.equals("color") && root.containsKey("data")) {
+                lightColor(root["data"], true, true);
+            }
+        }
 
     };
 
@@ -125,7 +152,7 @@ void _wsParse(uint32_t client_id, uint8_t * payload, size_t length) {
     if (root.containsKey("config") && root["config"].is<JsonArray&>()) {
 
         JsonArray& config = root["config"];
-        DEBUG_MSG("[WEBSOCKET] Parsing configuration data\n");
+        DEBUG_MSG_P(PSTR("[WEBSOCKET] Parsing configuration data\n"));
 
         unsigned char webMode = WEB_MODE_NORMAL;
 
@@ -133,7 +160,7 @@ void _wsParse(uint32_t client_id, uint8_t * payload, size_t length) {
         bool changed = false;
         bool changedMQTT = false;
         bool apiEnabled = false;
-        #if ENABLE_FAUXMO
+        #if ENABLE_ALEXA
             bool fauxmoEnabled = false;
         #endif
 
@@ -225,7 +252,7 @@ void _wsParse(uint32_t client_id, uint8_t * payload, size_t length) {
                 apiEnabled = true;
                 continue;
             }
-            #if ENABLE_FAUXMO
+            #if ENABLE_ALEXA
                 if (key == "fauxmoEnabled") {
                     fauxmoEnabled = true;
                     continue;
@@ -257,7 +284,7 @@ void _wsParse(uint32_t client_id, uint8_t * payload, size_t length) {
             if (index > -1) key += String(index);
 
             if (value != getSetting(key)) {
-                //DEBUG_MSG("[WEBSOCKET] Storing %s = %s\n", key.c_str(), value.c_str());
+                //DEBUG_MSG_P(PSTR("[WEBSOCKET] Storing %s = %s\n", key.c_str(), value.c_str()));
                 setSetting(key, value);
                 save = changed = true;
                 if (key.startsWith("mqtt")) changedMQTT = true;
@@ -273,7 +300,7 @@ void _wsParse(uint32_t client_id, uint8_t * payload, size_t length) {
                 setSetting("apiEnabled", apiEnabled);
                 save = changed = true;
             }
-            #if ENABLE_FAUXMO
+            #if ENABLE_ALEXA
                 if (fauxmoEnabled != (getSetting("fauxmoEnabled").toInt() == 1)) {
                     setSetting("fauxmoEnabled", fauxmoEnabled);
                     save = changed = true;
@@ -318,7 +345,7 @@ void _wsParse(uint32_t client_id, uint8_t * payload, size_t length) {
             #if ENABLE_OTA
                 otaConfigure();
             #endif
-            #if ENABLE_FAUXMO
+            #if ENABLE_ALEXA
                 fauxmoConfigure();
             #endif
             buildTopics();
@@ -400,6 +427,12 @@ void _wsStart(uint32_t client_id) {
         for (i=0; i<relayCount(); i++) {
             relay.add(relayStatus(i));
         }
+
+        if (getSetting("lightProvider", LIGHT_PROVIDER_NONE).toInt() != LIGHT_PROVIDER_NONE) {
+            root["colorVisible"] = 1;
+            root["color"] = lightColor();
+        }
+
         root["relayMode"] = getSetting("relayMode", RELAY_MODE);
         root["relayPulseMode"] = getSetting("relayPulseMode", RELAY_PULSE_MODE);
         root["relayPulseTime"] = getSetting("relayPulseTime", RELAY_PULSE_TIME);
@@ -468,7 +501,7 @@ void _wsStart(uint32_t client_id) {
 
         // Alexa -------------------------------------------------------------------
 
-        #if ENABLE_FAUXMO
+        #if ENABLE_ALEXA
             root["fauxmoVisible"] = 1;
             root["fauxmoEnabled"] = getSetting("fauxmoEnabled", FAUXMO_START_ACTIVE).toInt() == 1;
         #endif
@@ -600,7 +633,7 @@ void _wsStart(uint32_t client_id) {
         #endif
 
         // -------------------------------------------------------------------------
-         
+
     }
 
     String output;
@@ -620,7 +653,7 @@ bool _wsAuth(AsyncWebSocketClient * client) {
     }
 
     if (index == WS_BUFFER_SIZE) {
-        DEBUG_MSG("[WEBSOCKET] Validation check failed\n");
+        DEBUG_MSG_P(PSTR("[WEBSOCKET] Validation check failed\n"));
         ws.text(client->id(), "{\"message\": \"Session expired, please reload page...\"}");
         return false;
     }
@@ -640,14 +673,14 @@ void _wsEvent(AsyncWebSocket * server, AsyncWebSocketClient * client, AwsEventTy
 
     if (type == WS_EVT_CONNECT) {
         IPAddress ip = client->remoteIP();
-        DEBUG_MSG("[WEBSOCKET] #%u connected, ip: %d.%d.%d.%d, url: %s\n", client->id(), ip[0], ip[1], ip[2], ip[3], server->url());
+        DEBUG_MSG_P(PSTR("[WEBSOCKET] #%u connected, ip: %d.%d.%d.%d, url: %s\n"), client->id(), ip[0], ip[1], ip[2], ip[3], server->url());
         _wsStart(client->id());
     } else if(type == WS_EVT_DISCONNECT) {
-        DEBUG_MSG("[WEBSOCKET] #%u disconnected\n", client->id());
+        DEBUG_MSG_P(PSTR("[WEBSOCKET] #%u disconnected\n"), client->id());
     } else if(type == WS_EVT_ERROR) {
-        DEBUG_MSG("[WEBSOCKET] #%u error(%u): %s\n", client->id(), *((uint16_t*)arg), (char*)data);
+        DEBUG_MSG_P(PSTR("[WEBSOCKET] #%u error(%u): %s\n"), client->id(), *((uint16_t*)arg), (char*)data);
     } else if(type == WS_EVT_PONG) {
-        DEBUG_MSG("[WEBSOCKET] #%u pong(%u): %s\n", client->id(), len, len ? (char*) data : "");
+        DEBUG_MSG_P(PSTR("[WEBSOCKET] #%u pong(%u): %s\n"), client->id(), len, len ? (char*) data : "");
     } else if(type == WS_EVT_DATA) {
 
         AwsFrameInfo * info = (AwsFrameInfo*)arg;
@@ -675,7 +708,7 @@ void _wsEvent(AsyncWebSocket * server, AsyncWebSocketClient * client, AwsEventTy
 // -----------------------------------------------------------------------------
 
 void webLogRequest(AsyncWebServerRequest *request) {
-    DEBUG_MSG("[WEBSERVER] Request: %s %s\n", request->methodToString(), request->url().c_str());
+    DEBUG_MSG_P(PSTR("[WEBSERVER] Request: %s %s\n"), request->methodToString(), request->url().c_str());
 }
 
 bool _authenticate(AsyncWebServerRequest *request) {
@@ -688,20 +721,20 @@ bool _authenticate(AsyncWebServerRequest *request) {
 bool _authAPI(AsyncWebServerRequest *request) {
 
     if (getSetting("apiEnabled").toInt() == 0) {
-        DEBUG_MSG("[WEBSERVER] HTTP API is not enabled\n");
+        DEBUG_MSG_P(PSTR("[WEBSERVER] HTTP API is not enabled\n"));
         request->send(403);
         return false;
     }
 
     if (!request->hasParam("apikey", (request->method() == HTTP_PUT))) {
-        DEBUG_MSG("[WEBSERVER] Missing apikey parameter\n");
+        DEBUG_MSG_P(PSTR("[WEBSERVER] Missing apikey parameter\n"));
         request->send(403);
         return false;
     }
 
     AsyncWebParameter* p = request->getParam("apikey", (request->method() == HTTP_PUT));
     if (!p->value().equals(getSetting("apiKey"))) {
-        DEBUG_MSG("[WEBSERVER] Wrong apikey parameter\n");
+        DEBUG_MSG_P(PSTR("[WEBSERVER] Wrong apikey parameter\n"));
         request->send(403);
         return false;
     }
@@ -812,11 +845,11 @@ void _onRPC(AsyncWebServerRequest *request) {
 
         AsyncWebParameter* p = request->getParam("action");
         String action = p->value();
-        DEBUG_MSG("[RPC] Action: %s\n", action.c_str());
+        DEBUG_MSG_P(PSTR("[RPC] Action: %s\n"), action.c_str());
 
         if (action.equals("reset")) {
             response = 200;
-            deferred.once_ms(100, []() { ESP.reset(); });
+            deferred.once_ms(100, []() { ESP.restart(); });
         }
 
     }
@@ -946,6 +979,6 @@ void webSetup() {
 
     // Run server
     _server->begin();
-    DEBUG_MSG("[WEBSERVER] Webserver running on port %d\n", getSetting("webPort", WEBSERVER_PORT).toInt());
+    DEBUG_MSG_P(PSTR("[WEBSERVER] Webserver running on port %d\n"), getSetting("webPort", WEBSERVER_PORT).toInt());
 
 }

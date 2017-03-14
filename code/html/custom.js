@@ -39,6 +39,11 @@ function deferredReload(milliseconds) {
     setTimeout(function(){ window.location = "/"; }, milliseconds);
 }
 
+function doColor() {
+    var color = $(this).wheelColorPicker('getValue', 'css');
+    websock.send(JSON.stringify({'action': 'color', 'data' : color}));
+}
+
 function doUpdate() {
     var form = $("#formSave");
     if (validateForm(form)) {
@@ -104,7 +109,7 @@ function doReconnect(ask) {
 
 function doToggle(element, value) {
     var relayID = parseInt(element.attr("data"));
-    websock.send(JSON.stringify({'action': value ? 'on' : 'off', 'relayID': relayID}));
+    websock.send(JSON.stringify({'action': 'relay', 'data': { 'id': relayID, 'status': value ? 1 : 0 }}));
     return false;
 }
 
@@ -307,6 +312,11 @@ function processData(data) {
 
             return;
 
+        }
+
+        if (key == "color") {
+            $("input[name='color']").wheelColorPicker('setValue', data[key], true);
+            return;
         }
 
         if (key == "maxNetworks") {
@@ -533,6 +543,9 @@ function init() {
     });
     $(document).on('change', 'input', hasChanged);
     $(document).on('change', 'select', hasChanged);
+    $('input[name="color"]').wheelColorPicker({
+        sliders: 'wsvp'
+    }).on('sliderup', doColor);
 
     var host = window.location.hostname;
     var port = location.port;

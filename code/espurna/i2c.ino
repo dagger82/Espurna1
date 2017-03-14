@@ -34,14 +34,14 @@ void i2cScan() {
         response = brzo_i2c_end_transaction();
 
         if (response == 0) {
-            DEBUG_MSG("[I2C] Device found at address 0x%02X\n", address);
+            DEBUG_MSG_P(PSTR("[I2C] Device found at address 0x%02X\n"), address);
             nDevices++;
         } else if (response != 32) {
-            //DEBUG_MSG("[I2C] Unknown error at address 0x%02X\n", address);
+            //DEBUG_MSG_P(PSTR("[I2C] Unknown error at address 0x%02X\n"), address);
         }
     }
 
-    if (nDevices == 0) DEBUG_MSG("[I2C] No devices found");
+    if (nDevices == 0) DEBUG_MSG_P(PSTR("[I2C] No devices found"));
 
 }
 
@@ -62,7 +62,7 @@ void i2cSetup() {
         I2C_CLOCK_STRETCH_TIME
     );
 
-    DEBUG_MSG("[I2C] I2C enabled in %d (SDA) and %d (SCL)\n", sdaPin, sclPin);
+    DEBUG_MSG_P(PSTR("[I2C] I2C enabled in %d (SDA) and %d (SCL)\n"), sdaPin, sclPin);
 
     i2cScan();
 

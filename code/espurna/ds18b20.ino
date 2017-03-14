@@ -19,7 +19,6 @@ DallasTemperature * ds18b20;
 // -----------------------------------------------------------------------------
 
 bool _dsEnabled = false;
-double _dsTemperature = 0;
 
 // -----------------------------------------------------------------------------
 // Provider
@@ -33,17 +32,17 @@ unsigned int dsCreate(unsigned int pin) {
     DallasTemperature * ds18b20 = new DallasTemperature(wire);
     ds18b20->begin();
 
-    #ifdef DEBUG_PORT
-        DEBUG_MSG("[DS18B20] GPIO %d, found %d DS18B20 devices\n", pin, ds18b20->getDeviceCount());
-        DEBUG_MSG("[DS18B20] GPIO %d, DS18B20 parasite power %s\n", pin, ds18b20->isParasitePowerMode() ? "ON" : "OFF");
+    #if DEBUG_SERIAL | DEBUG_UDP
+        DEBUG_MSG_P(PSTR("[DS18B20] GPIO %d, found %d DS18B20 devices\n"), pin, ds18b20->getDeviceCount());
+        DEBUG_MSG_P(PSTR("[DS18B20] GPIO %d, DS18B20 parasite power %s\n"), pin, ds18b20->isParasitePowerMode() ? "ON" : "OFF");
         DeviceAddress address;
         for (int i=0; i<ds18b20->getDeviceCount(); i++) {
             ds18b20->getAddress(address, i);
-            DEBUG_MSG("[DS18B20] GPIO %d, DS18B20 #%d address: ", pin, i);
+            DEBUG_MSG_P(PSTR("[DS18B20] GPIO %d, DS18B20 #%d address: "), pin, i);
             for (uint8_t i = 0; i < 8; i++) {
                 DEBUG_PORT.printf("%02X", address[i]);
             }
-            DEBUG_MSG("\n");
+            DEBUG_MSG_P(PSTR("\n"));
         }
     #endif
 
@@ -65,6 +64,9 @@ bool dsGetAddress(uint8_t * address, unsigned int index) {
     }
     return false;
 }
+
+// TODO:
+// Recover async conversion with requestTemperatures() and isConversionComplete()
 
 double dsGetTemperature(unsigned int connectionId, unsigned int index) {
     if (0 <= connectionId && connectionId < _ds18b20s.size()) {
@@ -125,10 +127,10 @@ void dsSetup() {
     dsCreate(getSetting("dsGPIO", DS_PIN).toInt());
 
     apiRegister("/api/temperature", "temperature", [](char * buffer, size_t len) {
-        dtostrf(_dsTemperature, len-1, 1, buffer);
+        dtostrf(dsGetTemperature(), len-1, 1, buffer);
     });
 
-    DEBUG_MSG("[DS18B20] DS18B20 enabled on GPIO #%d\n", getSetting("dsGPIO", DS_PIN).toInt());
+    DEBUG_MSG_P(PSTR("[DS18B20] DS18B20 enabled on GPIO #%d\n"), getSetting("dsGPIO", DS_PIN).toInt());
 
 
 }
@@ -150,17 +152,15 @@ void dsLoop() {
         // Check if readings are valid
         if (t == DEVICE_DISCONNECTED_C) {
 
-            DEBUG_MSG("[DS18B20] Error reading sensor\n");
+            DEBUG_MSG_P(PSTR("[DS18B20] Error reading sensor\n"));
 
         } else {
 
             if (tmpUnits == TMP_FAHRENHEIT) t = Celsius2Fahrenheit(t);
-            
-            _dsTemperature = t;
 
             char temperature[6];
             dtostrf(t, 5, 1, temperature);
-            DEBUG_MSG("[DS18B20] Temperature: %s%s\n", temperature, (tmpUnits == TMP_CELSIUS) ? "ºC" : "ºF");
+            DEBUG_MSG_P(PSTR("[DS18B20] Temperature: %s%s\n"), temperature, (tmpUnits == TMP_CELSIUS) ? "ºC" : "ºF");
 
             // Send MQTT messages
             mqttSend(getSetting("dsTmpTopic", DS_TEMPERATURE_TOPIC).c_str(), temperature);

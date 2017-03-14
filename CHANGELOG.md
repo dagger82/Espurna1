@@ -7,6 +7,42 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 ### Changed
 - Soft-configuration: dynamically configure boards and sensors
 
+## [1.6.9] 2017-03-12
+### Added
+- Two stage read for DS18B20 devices. Thanks to Izik Dubnov.
+- Option to report the relay status via MQTT periodically
+- Terminal commands to change relay status an light color
+- Added debug via UDP (disabled by default)
+- Moved debug strings to PROGMEM. ~1.5KByes memory freed
+- Avoid broadcasting websocket messages if no clients connected
+
+### Fix
+- Fixing use after free bug that leads to corrupted auth credentials. Thanks to David Guillen
+
+## [1.6.8] 2017-03-01
+### Added
+- Issue #85. Heartbeat reports now free heap, uptime and VCC every 5 minutes
+
+### Changed
+- Wait two minutes instead of one in AP mode before trying to reconnect to the router
+- Issue #92. Debug log enabled by default in Arduino IDE
+- Issue #91. Using AsyncMqttClient as default MQTT client again
+
+### Fix
+- Report data from all sensors via websocket even if no MQTT connection
+- Issue #92. Fix unknown reference in Arduino IDE
+- Split data.h contents into 1k lines, otherwise Arduino IDE chokes on them
+- Discard empty MQTT topic while subscribing
+
+## [1.6.7] 2017-02-25
+### Added
+- Support for OpenLight / AI-Light by AI-Thinker based on MY9291 LED driver
+- Issue #87. Factory reset when physical button pressed for >10 seconds
+
+## [1.6.6] 2017-02-23
+### Fix
+- Issue #82. Fix critical bug on Sonoff Dual
+
 ## [1.6.5] 2017-02-22
 ### Added
 - Option to backup and restore settings from the web interface

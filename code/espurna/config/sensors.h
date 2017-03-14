@@ -92,3 +92,17 @@
 #define HLW8012_ENERGY_TOPIC        "/energy"
 #define HLW8012_UPDATE_INTERVAL     5000
 #define HLW8012_REPORT_EVERY        12
+
+//--------------------------------------------------------------------------------
+// Internal power montior
+// Enable support by passing ENABLE_ADC_VCC=1 build flag
+// Do not enable this if using the analog GPIO for any other thing
+//--------------------------------------------------------------------------------
+
+#ifndef ENABLE_ADC_VCC
+#define ENABLE_ADC_VCC       0
+#endif
+
+#if ENABLE_ADC_VCC
+    ADC_MODE(ADC_VCC);
+#endif

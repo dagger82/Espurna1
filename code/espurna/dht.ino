@@ -16,8 +16,6 @@ Copyright (C) 2016-2017 by Xose Pérez <xose dot perez at gmail dot com>
 // -----------------------------------------------------------------------------
 
 bool _dhtEnabled = false;
-double _dhtTemperature = 0;
-unsigned int _dhtHumidity = 0;
 
 // -----------------------------------------------------------------------------
 // Provider
@@ -79,13 +77,13 @@ void dhtSetup() {
     );
 
     apiRegister("/api/temperature", "temperature", [](char * buffer, size_t len) {
-        dtostrf(_dhtTemperature, len-1, 1, buffer);
+        dtostrf(dhtGetTemperature(), len-1, 1, buffer);
     });
     apiRegister("/api/humidity", "humidity", [](char * buffer, size_t len) {
-        snprintf(buffer, len, "%d", _dhtHumidity);
+        snprintf(buffer, len, "%d", dhtGetHumidity());
     });
 
-    DEBUG_MSG("[DHT] DHT enabled on GPIO #%d\n", getSetting("dhtGPIO", DHT_PIN).toInt());
+    DEBUG_MSG_P(PSTR("[DHT] DHT enabled on GPIO #%d\n"), getSetting("dhtGPIO", DHT_PIN).toInt());
 
 }
 
@@ -107,22 +105,19 @@ void dhtLoop() {
         // Check if readings are valid
         if (isnan(h) || isnan(t)) {
 
-            DEBUG_MSG("[DHT] Error reading sensor\n");
+            DEBUG_MSG_P(PSTR("[DHT] Error reading sensor\n"));
 
         } else {
 
             if (tmpUnits == TMP_FAHRENHEIT) t = Celsius2Fahrenheit(t);
-
-            _dhtTemperature = t;
-            _dhtHumidity = h;
 
             char temperature[6];
             char humidity[6];
             dtostrf(t, 4, 1, temperature);
             itoa(h, humidity, 10);
 
-            DEBUG_MSG("[DHT] Temperature: %s%s\n", temperature, (tmpUnits == TMP_CELSIUS) ? "ºC" : "ºF");
-            DEBUG_MSG("[DHT] Humidity: %s\n", humidity);
+            DEBUG_MSG_P(PSTR("[DHT] Temperature: %s%s\n"), temperature, (tmpUnits == TMP_CELSIUS) ? "ºC" : "ºF");
+            DEBUG_MSG_P(PSTR("[DHT] Humidity: %s\n"), humidity);
 
             // Send MQTT messages
             mqttSend(getSetting("dhtTmpTopic", DHT_TEMPERATURE_TOPIC).c_str(), temperature);

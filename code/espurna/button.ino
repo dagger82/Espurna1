@@ -15,31 +15,29 @@ Copyright (C) 2016-2017 by Xose Pérez <xose dot perez at gmail dot com>
 
 typedef struct {
     DebounceEvent * button;
-    unsigned int actions;
+    unsigned long actions;
     unsigned int relayID;
 } button_t;
 
 std::vector<button_t> _buttons;
 
-#ifdef MQTT_BUTTON_TOPIC
+#ifdef MQTT_TOPIC_BUTTON
 void buttonMQTT(unsigned char id, uint8_t event) {
     if (id >= _buttons.size()) return;
-    String mqttGetter = getSetting("mqttGetter", MQTT_USE_GETTER);
-    char buffer[strlen(MQTT_BUTTON_TOPIC) + mqttGetter.length() + 3];
-    sprintf(buffer, "%s/%d%s", MQTT_BUTTON_TOPIC, id, mqttGetter.c_str());
     char payload[2];
     sprintf(payload, "%d", event);
-    mqttSend(buffer, payload);
+    mqttSend(MQTT_TOPIC_BUTTON, id, payload);
 }
 #endif
 
 unsigned char buttonAction(unsigned char id, unsigned char event) {
     if (id >= _buttons.size()) return BUTTON_MODE_NONE;
-    unsigned int actions = _buttons[id].actions;
-    if (event == BUTTON_EVENT_PRESSED) return (actions >> 12) & 0x0F;
-    if (event == BUTTON_EVENT_CLICK) return (actions >> 8) & 0x0F;
-    if (event == BUTTON_EVENT_DBLCLICK) return (actions >> 4) & 0x0F;
-    if (event == BUTTON_EVENT_LNGCLICK) return (actions) & 0x0F;
+    unsigned long actions = _buttons[id].actions;
+    if (event == BUTTON_EVENT_PRESSED) return (actions) & 0x0F;
+    if (event == BUTTON_EVENT_CLICK) return (actions >> 4) & 0x0F;
+    if (event == BUTTON_EVENT_DBLCLICK) return (actions >> 8) & 0x0F;
+    if (event == BUTTON_EVENT_LNGCLICK) return (actions >> 12) & 0x0F;
+    if (event == BUTTON_EVENT_LNGLNGCLICK) return (actions >> 16) & 0x0F;
     return BUTTON_MODE_NONE;
 }
 
@@ -49,30 +47,37 @@ unsigned int buttonActions(unsigned char id) {
     unsigned char clickAction = getSetting("btnClick", id, BUTTON_MODE_TOGGLE).toInt();
     unsigned char dblClickAction = getSetting("btnDblClick", id, (id == 1) ? BUTTON_MODE_AP : BUTTON_MODE_NONE).toInt();
     unsigned char lngClickAction = getSetting("btnLngClick", id, (id == 1) ? BUTTON_MODE_RESET : BUTTON_MODE_NONE).toInt();
+    unsigned char lnglngClickAction = getSetting("btnLngLngClick", id, (id == 1) ? BUTTON_MODE_FACTORY : BUTTON_MODE_NONE).toInt();
 
     unsigned int value;
-    value  = pressAction << 12;
-    value += clickAction << 8;
-    value += dblClickAction << 4;
-    value += lngClickAction;
+    value  = pressAction;
+    value += clickAction << 4;
+    value += dblClickAction << 8;
+    value += lngClickAction << 12;
+    value += lnglngClickAction << 16;
     return value;
+
 }
 
-uint8_t mapEvent(uint8_t event) {
+uint8_t mapEvent(uint8_t event, uint8_t count, uint16_t length) {
     if (event == EVENT_PRESSED) return BUTTON_EVENT_PRESSED;
     if (event == EVENT_CHANGED) return BUTTON_EVENT_CLICK;
-    if (event == EVENT_SINGLE_CLICK) return BUTTON_EVENT_CLICK;
-    if (event == EVENT_DOUBLE_CLICK) return BUTTON_EVENT_DBLCLICK;
-    if (event == EVENT_LONG_CLICK) return BUTTON_EVENT_LNGCLICK;
-    return BUTTON_EVENT_NONE;
+    if (event == EVENT_RELEASED) {
+        if (count == 1) {
+            if (length > BUTTON_LNGLNGCLICK_LENGTH) return BUTTON_EVENT_LNGLNGCLICK;
+            if (length > BUTTON_LNGCLICK_LENGTH) return BUTTON_EVENT_LNGCLICK;
+            return BUTTON_EVENT_CLICK;
+        }
+        if (count == 2) return BUTTON_EVENT_DBLCLICK;
+    }
 }
 
 void buttonEvent(unsigned int id, unsigned char event) {
 
-    DEBUG_MSG("[BUTTON] Pressed #%d, event: %d\n", id, event);
+    DEBUG_MSG_P(PSTR("[BUTTON] Pressed #%d, event: %d\n"), id, event);
     if (event == 0) return;
 
-    #ifdef MQTT_BUTTON_TOPIC
+    #ifdef MQTT_TOPIC_BUTTON
         buttonMQTT(id, event);
     #endif
 
@@ -84,8 +89,13 @@ void buttonEvent(unsigned int id, unsigned char event) {
         }
     }
     if (action == BUTTON_MODE_AP) createAP();
-    if (action == BUTTON_MODE_RESET) ESP.reset();
+    if (action == BUTTON_MODE_RESET) ESP.restart();
     if (action == BUTTON_MODE_PULSE) relayPulseToggle();
+    if (action == BUTTON_MODE_FACTORY) {
+        DEBUG_MSG_P(PSTR("\n\nFACTORY RESET\n\n"));
+        settingsFactoryReset();
+        ESP.restart();
+    }
 
 }
 
@@ -112,7 +122,7 @@ void buttonSetup() {
 
     }
 
-    DEBUG_MSG("[BUTTON] Number of buttons: %d\n", _buttons.size());
+    DEBUG_MSG_P(PSTR("[BUTTON] Number of buttons: %d\n"), _buttons.size());
 
 }
 
@@ -162,10 +172,12 @@ void buttonLoop() {
 
     } else {
 
-        for (unsigned int id=0; id < _buttons.size(); id++) {
-            if (_buttons[id].button->loop()) {
-                uint8_t event = mapEvent(_buttons[id].button->getEvent());
-                buttonEvent(id, event);
+        for (unsigned int i=0; i < _buttons.size(); i++) {
+            if (unsigned char event = _buttons[i].button->loop()) {
+                unsigned char count = _buttons[i].button->getEventCount();
+                unsigned long length = _buttons[i].button->getEventLength();
+                unsigned char mapped = mapEvent(event, count, length);
+                buttonEvent(i, mapped);
             }
         }
 

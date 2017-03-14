@@ -20,6 +20,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 #include "config/all.h"
+#include <EEPROM.h>
 
 // -----------------------------------------------------------------------------
 // BOOTING
@@ -27,33 +28,31 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 void welcome() {
 
-    delay(2000);
-
-    DEBUG_MSG("%s %s\n", (char *) APP_NAME, (char *) APP_VERSION);
-    DEBUG_MSG("%s\n%s\n\n", (char *) APP_AUTHOR, (char *) APP_WEBSITE);
-    DEBUG_MSG("ChipID: %06X\n", ESP.getChipId());
-    DEBUG_MSG("CPU frequency: %d MHz\n", ESP.getCpuFreqMHz());
-    DEBUG_MSG("Last reset reason: %s\n", (char *) ESP.getResetReason().c_str());
-    DEBUG_MSG("Memory size: %d bytes\n", ESP.getFlashChipSize());
-    DEBUG_MSG("Free heap: %d bytes\n", ESP.getFreeHeap());
-    DEBUG_MSG("Firmware size: %d bytes\n", ESP.getSketchSize());
-    DEBUG_MSG("Free firmware space: %d bytes\n", ESP.getFreeSketchSpace());
+    DEBUG_MSG_P(PSTR("%s %s\n"), (char *) APP_NAME, (char *) APP_VERSION);
+    DEBUG_MSG_P(PSTR("%s\n%s\n\n"), (char *) APP_AUTHOR, (char *) APP_WEBSITE);
+    DEBUG_MSG_P(PSTR("ChipID: %06X\n"), ESP.getChipId());
+    DEBUG_MSG_P(PSTR("CPU frequency: %d MHz\n"), ESP.getCpuFreqMHz());
+    DEBUG_MSG_P(PSTR("Last reset reason: %s\n"), (char *) ESP.getResetReason().c_str());
+    DEBUG_MSG_P(PSTR("Memory size: %d bytes\n"), ESP.getFlashChipSize());
+    DEBUG_MSG_P(PSTR("Free heap: %d bytes\n"), ESP.getFreeHeap());
+    DEBUG_MSG_P(PSTR("Firmware size: %d bytes\n"), ESP.getSketchSize());
+    DEBUG_MSG_P(PSTR("Free firmware space: %d bytes\n"), ESP.getFreeSketchSpace());
 
     #if not EMBEDDED_WEB
         FSInfo fs_info;
         if (SPIFFS.info(fs_info)) {
-            DEBUG_MSG("File system total size: %d bytes\n", fs_info.totalBytes);
-            DEBUG_MSG("            used size : %d bytes\n", fs_info.usedBytes);
-            DEBUG_MSG("            block size: %d bytes\n", fs_info.blockSize);
-            DEBUG_MSG("            page size : %d bytes\n", fs_info.pageSize);
-            DEBUG_MSG("            max files : %d\n", fs_info.maxOpenFiles);
-            DEBUG_MSG("            max length: %d\n", fs_info.maxPathLength);
+            DEBUG_MSG_P(PSTR("File system total size: %d bytes\n"), fs_info.totalBytes);
+            DEBUG_MSG_P(PSTR("            used size : %d bytes\n"), fs_info.usedBytes);
+            DEBUG_MSG_P(PSTR("            block size: %d bytes\n"), fs_info.blockSize);
+            DEBUG_MSG_P(PSTR("            page size : %d bytes\n"), fs_info.pageSize);
+            DEBUG_MSG_P(PSTR("            max files : %d\n"), fs_info.maxOpenFiles);
+            DEBUG_MSG_P(PSTR("            max length: %d\n"), fs_info.maxPathLength);
         }
     #endif
 
-    DEBUG_MSG("\n");
-    DEBUG_MSG("Device: %s\n", getBoardFullName().c_str());
-    DEBUG_MSG("\n");
+    DEBUG_MSG_P(PSTR("\n"));
+    DEBUG_MSG_P(PSTR("Device: %s\n"), getBoardFullName().c_str());
+    DEBUG_MSG_P(PSTR("\n"));
 
 }
 
@@ -64,6 +63,8 @@ void setup() {
         SPIFFS.begin();
     #endif
 
+    EEPROM.begin(4096);
+
     settingsSetup();
     if (getSetting("hostname").length() == 0) {
         setSetting("hostname", getIdentifier());
@@ -72,12 +73,18 @@ void setup() {
     hwSetup();
     welcome();
 
-    DEBUG_MSG("[SETUP] ---------------------------------------------\n");
+    DEBUG_MSG_P(PSTR("[SETUP] ---------------------------------------------\n"));
 
 	webSetup();
+    if (getSetting("relayProvider", RELAY_PROVIDER_RELAY).toInt() == RELAY_PROVIDER_LIGHT) {
+        lightSetup();
+    }
     relaySetup();
     buttonSetup();
     ledSetup();
+
+    delay(500);
+
     wifiSetup();
     mqttSetup();
 
@@ -90,7 +97,7 @@ void setup() {
     #if ENABLE_I2C
         i2cSetup();
     #endif
-    #if ENABLE_FAUXMO
+    #if ENABLE_ALEXA
         fauxmoSetup();
     #endif
     #if ENABLE_NOFUSS
@@ -115,7 +122,7 @@ void setup() {
     // Configure /api entry point
     webLateSetup();
 
-    DEBUG_MSG("[SETUP] ---------------------------------------------\n");
+    DEBUG_MSG_P(PSTR("[SETUP] ---------------------------------------------\n"));
 
 }
 
@@ -137,7 +144,7 @@ void loop() {
     #if ENABLE_NTP
         ntpLoop();
     #endif
-    #if ENABLE_FAUXMO
+    #if ENABLE_ALEXA
         fauxmoLoop();
     #endif
     #if ENABLE_NOFUSS

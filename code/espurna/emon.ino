@@ -9,8 +9,8 @@ Copyright (C) 2016-2017 by Xose Pérez <xose dot perez at gmail dot com>
 #if ENABLE_EMON
 
 #include <EmonLiteESP.h>
-#include "brzo_i2c.h"
 #include <EEPROM.h>
+#include "brzo_i2c.h"
 
 // ADC121 Registers
 #define ADC121_REG_RESULT       0x00
@@ -107,7 +107,7 @@ void emonSetup() {
         snprintf(buffer, len, "%d", _emonPower);
     });
 
-    DEBUG_MSG("[EMON] EMON enabled with provider #%d\n", _emonProvider);
+    DEBUG_MSG_P(PSTR("[ENERGY] EMON enabled with provider #%d\n"), _emonProvider);
 
 }
 
@@ -155,8 +155,8 @@ void emonLoop() {
         char *c = current_buf;
         while ((unsigned char) *c == ' ') ++c;
 
-        DEBUG_MSG("[EMON] Current: %sA\n", c);
-        DEBUG_MSG("[EMON] Power: %dW\n", int(_emonCurrent * mainsVoltage));
+        DEBUG_MSG_P(PSTR("[ENERGY] Current: %sA\n"), c);
+        DEBUG_MSG_P(PSTR("[ENERGY] Power: %dW\n"), int(_emonCurrent * mainsVoltage));
 
         // Update websocket clients
         char text[64];
