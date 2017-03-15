@@ -18,9 +18,9 @@ typedef struct {
     unsigned char led;
 } relay_t;
 std::vector<relay_t> _relays;
-Ticker pulseTicker;
-bool recursive = false;
-unsigned char dualRelayStatus = 0;
+Ticker _pulseTicker;
+bool _relayRecursive = false;
+unsigned char _dualRelayStatus = 0;
 unsigned char _relayProvider;
 
 // -----------------------------------------------------------------------------
@@ -31,11 +31,11 @@ void relayProviderStatus(unsigned char id, bool status) {
 
     if (_relayProvider == RELAY_PROVIDER_DUAL) {
 
-        dualRelayStatus ^= (1 << id);
+        _dualRelayStatus ^= (1 << id);
         Serial.flush();
         Serial.write(0xA0);
         Serial.write(0x04);
-        Serial.write(dualRelayStatus);
+        Serial.write(_dualRelayStatus);
         Serial.write(0xA1);
         Serial.flush();
 
@@ -56,7 +56,7 @@ bool relayProviderStatus(unsigned char id) {
     if (_relayProvider == RELAY_PROVIDER_DUAL) {
 
         if (id >= 2) return false;
-        return ((dualRelayStatus & (1 << id)) > 0);
+        return ((_dualRelayStatus & (1 << id)) > 0);
 
     } else if (_relayProvider == RELAY_PROVIDER_LIGHT) {
 
@@ -100,11 +100,11 @@ void relayPulse(unsigned char id) {
     bool status = relayStatus(id);
     bool pulseStatus = (relayPulseMode == RELAY_PULSE_ON);
     if (pulseStatus == status) {
-        pulseTicker.detach();
+        _pulseTicker.detach();
         return;
     }
 
-    pulseTicker.once(
+    _pulseTicker.once(
         getSetting("relayPulseTime", RELAY_PULSE_TIME).toInt(),
         relayToggle,
         id
@@ -166,7 +166,7 @@ bool relayStatus(unsigned char id, bool status, bool report) {
         }
 
         if (report) relayMQTT(id);
-        if (!recursive) {
+        if (!_relayRecursive) {
             relayPulse(id);
             relaySync(id);
             relaySave();
@@ -191,7 +191,7 @@ void relaySync(unsigned char id) {
 
     if (_relays.size() > 1) {
 
-        recursive = true;
+        _relayRecursive = true;
 
         byte relaySync = getSetting("relaySync", RELAY_SYNC).toInt();
         bool status = relayStatus(id);
@@ -218,7 +218,7 @@ void relaySync(unsigned char id) {
             }
         }
 
-        recursive = false;
+        _relayRecursive = false;
 
     }
 
@@ -236,7 +236,7 @@ void relaySave() {
 }
 
 void relayRetrieve(bool invert) {
-    recursive = true;
+    _relayRecursive = true;
     unsigned char bit = 1;
     unsigned char mask = invert ? ~EEPROM.read(EEPROM_RELAY_STATUS) : EEPROM.read(EEPROM_RELAY_STATUS);
     for (unsigned int i=0; i < _relays.size(); i++) {
@@ -247,7 +247,7 @@ void relayRetrieve(bool invert) {
         EEPROM.write(EEPROM_RELAY_STATUS, mask);
         EEPROM.commit();
     }
-    recursive = false;
+    _relayRecursive = false;
 }
 
 void relayToggle(unsigned char id) {
@@ -300,7 +300,6 @@ void relayWS() {
     String output = relayString();
     wsSend(output.c_str());
 }
-
 
 //------------------------------------------------------------------------------
 // Domoticz

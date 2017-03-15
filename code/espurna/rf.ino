@@ -15,20 +15,20 @@ Copyright (C) 2016-2017 by Xose Pérez <xose dot perez at gmail dot com>
 // -----------------------------------------------------------------------------
 
 bool _rfEnabled = false;
-unsigned long rfCode = 0;
-unsigned long rfCodeON = 0;
-unsigned long rfCodeOFF = 0;
+unsigned long _rfCode = 0;
+unsigned long _rfCodeON = 0;
+unsigned long _rfCodeOFF = 0;
 
 // -----------------------------------------------------------------------------
 // RF
 // -----------------------------------------------------------------------------
 
 void rfLoop() {
-    if (rfCode == 0) return;
-    DEBUG_MSG_P(PSTR("[RF] Received code: %lu\n"), rfCode);
-    if (rfCode == rfCodeON) relayStatus(0, true);
-    if (rfCode == rfCodeOFF) relayStatus(0, false);
-    rfCode = 0;
+    if (_rfCode == 0) return;
+    DEBUG_MSG_P(PSTR("[RF] Received code: %lu\n"), _rfCode);
+    if (_rfCode == _rfCodeON) relayStatus(0, true);
+    if (_rfCode == _rfCodeOFF) relayStatus(0, false);
+    _rfCode = 0;
 }
 
 void rfBuildCodes() {
@@ -52,16 +52,16 @@ void rfBuildCodes() {
 
     // status
     code *= 9;
-    rfCodeOFF = code + 2;
-    rfCodeON = code + 6;
+    _rfCodeOFF = code + 2;
+    _rfCodeON = code + 6;
 
-    DEBUG_MSG_P(PSTR("[RF] Code ON : %lu\n"), rfCodeON);
-    DEBUG_MSG_P(PSTR("[RF] Code OFF: %lu\n"), rfCodeOFF);
+    DEBUG_MSG_P(PSTR("[RF] Code ON : %lu\n"), _rfCodeON);
+    DEBUG_MSG_P(PSTR("[RF] Code OFF: %lu\n"), _rfCodeOFF);
 
 }
 
 void rfCallback(unsigned long code, unsigned int period) {
-    rfCode = code;
+    _rfCode = code;
 }
 
 bool rfEnabled() {

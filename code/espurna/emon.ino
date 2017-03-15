@@ -104,7 +104,7 @@ void emonSetup() {
     }
 
     apiRegister("/api/power", "power", [](char * buffer, size_t len) {
-        snprintf(buffer, len, "%d", _emonPower);
+        snprintf(buffer, len, "%d", emonGetApparentPower());
     });
 
     DEBUG_MSG_P(PSTR("[ENERGY] EMON enabled with provider #%d\n"), _emonProvider);

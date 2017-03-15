@@ -13,7 +13,9 @@ Ticker colorTicker;
 unsigned char _lightProvider;
 bool _lightState = false;
 unsigned int _lightColor[3] = {0};
+
 my9291 * _my9291;
+
 unsigned char _redPin;
 unsigned char _greenPin;
 unsigned char _bluePin;
@@ -147,7 +149,6 @@ void lightColorRetrieve() {
 
 void lightMQTTCallback(unsigned int type, const char * topic, const char * payload) {
 
-
     if (type == MQTT_CONNECT_EVENT) {
         mqttSubscribe(MQTT_TOPIC_COLOR);
     }
@@ -173,12 +174,9 @@ void lightSetup() {
     _lightProvider = getSetting("lightProvider", LIGHT_PROVIDER_NONE).toInt();
 
     if (_lightProvider == LIGHT_PROVIDER_MY9192) {
-        unsigned char diPin, dckiPin;
-        _my9291 = new my9291(
-            diPin = getSetting("myDIGPIO", MY9291_DI_PIN).toInt(),
-            dckiPin = getSetting("myDCKIGPIO", MY9291_DCKI_PIN).toInt(),
-            MY9291_COMMAND
-        );
+        unsigned char diPin = getSetting("myDIGPIO", MY9291_DI_PIN).toInt();
+        unsigned char dckiPin = getSetting("myDCKIGPIO", MY9291_DCKI_PIN).toInt();
+        _my9291 = new my9291(diPin, dckiPin, MY9291_COMMAND);
         DEBUG_MSG_P(PSTR("[LIGHT] MY9291 controller enabled in %d (DI) and %d (DCKI)\n"), diPin, dckiPin);
     }
 
@@ -199,7 +197,6 @@ void lightSetup() {
 		} else {
             DEBUG_MSG_P(PSTR("[LIGHT] RGB controller enabled in GPIO %d, %d and %d\n"), _redPin, _greenPin, _bluePin);
         }
-        lightColorProvider(0, 0, 0);
 
     }
 

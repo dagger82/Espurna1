@@ -14,13 +14,9 @@
 
 #define DEBUG_MESSAGE_MAX_LENGTH    80
 
-#ifndef DEBUG_SERIAL_PORT
 #define DEBUG_SERIAL_PORT       Serial
-#endif
 
-// To receive the message son the destination computer use nc:
-// nc -ul 8111
-
+// To receive the message son the destination computer use "nc -ul 8111"
 #define DEBUG_UDP_IP            IPAddress(192, 168, 1, 100)
 #define DEBUG_UDP_PORT          8111
 
@@ -211,6 +207,12 @@
 // Use something like "/status" or "/set", with leading slash
 #define MQTT_USE_GETTER         ""
 #define MQTT_USE_SETTER         ""
+
+// -----------------------------------------------------------------------------
+// SETTINGS
+// -----------------------------------------------------------------------------
+
+#define SETTINGS_AUTO_SAVE      0
 
 // -----------------------------------------------------------------------------
 // I2C

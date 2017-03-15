@@ -11,8 +11,6 @@ Copyright (C) 2016-2017 by Xose Pérez <xose dot perez at gmail dot com>
 #include "spi_flash.h"
 #include <StreamString.h>
 
-#define AUTO_SAVE 0
-
 Embedis embedis(Serial);
 
 // -----------------------------------------------------------------------------
@@ -75,7 +73,7 @@ void settingsSetup() {
         SPI_FLASH_SEC_SIZE,
         [](size_t pos) -> char { return EEPROM.read(pos); },
         [](size_t pos, char value) { EEPROM.write(pos, value); },
-        #if AUTO_SAVE
+        #if SETTINGS_AUTO_SAVE
             []() { EEPROM.commit(); }
         #else
             []() {}
@@ -99,10 +97,12 @@ void settingsSetup() {
         ESP.restart();
     });
 
-    Embedis::command( F("SAVE"), [](Embedis* e) {
-        e->response(Embedis::OK);
-        saveSettings();
-    });
+    #if SETTINGS_AUTO_SAVE == 0
+        Embedis::command( F("SAVE"), [](Embedis* e) {
+            e->response(Embedis::OK);
+            saveSettings();
+        });
+    #endif
 
     Embedis::command( F("BOARD"), [](Embedis* e) {
         if (e->argc > 1) {
@@ -237,8 +237,8 @@ bool hasSetting(const String& key, unsigned int index) {
 }
 
 void saveSettings() {
-    DEBUG_MSG_P(PSTR("[SETTINGS] Saving\n"));
-    #if not AUTO_SAVE
+    #if SETTINGS_AUTO_SAVE == 0
+        DEBUG_MSG_P(PSTR("[SETTINGS] Saving\n"));
         EEPROM.commit();
     #endif
 }

@@ -109,9 +109,15 @@ unsigned char ledCount() {
 }
 
 void ledConfigure() {
-    _ledAuto = getSetting("ledAuto", String() + LED_AUTO).toInt() == 1;
-    _wifiLed = getSetting("wifiLed", String(1)).toInt();
 
+    // TODO: LED modes should be managed in the same way as button modes
+    // LED_MODE_NONE or LED_MODE_MANUAL
+    // LED_MODE_WIFI
+    // LED_MODE_RELAY with relayLed#
+
+    _ledAuto = getSetting("ledAuto", String(LED_AUTO)).toInt() == 1;
+    _wifiLed = getSetting("wifiLed", String(1)).toInt();
+    
 }
 
 void ledSetup() {

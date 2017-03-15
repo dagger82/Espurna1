@@ -93,7 +93,10 @@ void dhtLoop() {
 
     // Check if we should read new data
     static unsigned long last_update = 0;
+
+    // TODO: configurable DHT update interval
     if ((millis() - last_update > DHT_UPDATE_INTERVAL) || (last_update == 0)) {
+
         last_update = millis();
 
         unsigned char tmpUnits = getSetting("tmpUnits", TMP_UNITS).toInt();
