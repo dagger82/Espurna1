@@ -26,6 +26,7 @@ typedef enum {
     BOARD_JORGE_GARCIA_WIFI_RELAYS_BOARD_KIT,
     BOARD_AITHINKER_AILIGHT,
     BOARD_MAGICHOME_LEDCONTROLLER,
+    BOARD_ITEAD_MOTOR,
 
     BOARD_LAST
 
@@ -67,7 +68,8 @@ PROGMEM const char* const manufacturers[] = {
     man_openenergymonitor, // BOARD_OPENENERGYMONITOR_MQTT_RELAY
     man_jorgegarcia, // BOARD_JORGE_GARCIA_WIFI_RELAYS_BOARD_KIT
     man_aithinker, // BOARD_AITHINKER_AILIGHT
-    man_magichome // BOARD_MAGICHOME_LEDCONTROLLER
+    man_magichome, // BOARD_MAGICHOME_LEDCONTROLLER
+    man_itead // BOARD_ITEAD_MOTOR
 };
 
 const PROGMEM char board_unknown[] = "UNKNOWN";
@@ -92,6 +94,7 @@ const PROGMEM char board_openenergymonitor_mqtt_relay[] = "MQTT RELAY";
 const PROGMEM char board_jorge_garcia_wifi_relays_board_kit[] = "WIFI + RELAYS BOARD KIT";
 const PROGMEM char board_aithinker_ailight[] = "AI LIGHT";
 const PROGMEM char board_magichome_ledcontroller[] = "LED CONTROLLER";
+const PROGMEM char board_itead_motor[] = "MOTOR CW/ACW";
 
 const PROGMEM char * const boardnames[] = {
     board_unknown,
@@ -115,7 +118,8 @@ const PROGMEM char * const boardnames[] = {
     board_openenergymonitor_mqtt_relay, // BOARD_OPENENERGYMONITOR_MQTT_RELAY
     board_jorge_garcia_wifi_relays_board_kit, // BOARD_JORGE_GARCIA_WIFI_RELAYS_BOARD_KIT
     board_aithinker_ailight, // BOARD_AITHINKER_AILIGHT
-    board_magichome_ledcontroller // BOARD_MAGICHOME_LEDCONTROLLER
+    board_magichome_ledcontroller, // BOARD_MAGICHOME_LEDCONTROLLER
+    board_itead_motor // BOARD_ITEAD_MOTOR
 };
 
 #ifndef DEFAULT_BOARD

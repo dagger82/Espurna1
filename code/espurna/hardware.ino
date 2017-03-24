@@ -117,6 +117,7 @@ void hwLoad(unsigned char board, bool save) {
         case BOARD_ITEAD_SONOFF_TOUCH:
         case BOARD_ITEAD_S20:
         case BOARD_ITEAD_SONOFF_1CH:
+        case BOARD_ITEAD_MOTOR:
             setSetting("ledGPIO", 1, 13);
             setSetting("ledLogic", 1, 1);
             setSetting("btnGPIO", 1, 0);
