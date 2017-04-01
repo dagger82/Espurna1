@@ -1,0 +1,39 @@
+#!/bin/bash
+
+IDE_PATH=$HOME/local/arduino
+PACKAGES=$HOME/.arduino15/packages
+BUILD_PATH=/tmp/arduino-build
+
+SKETCH_FOLDER=./espurna
+CONFIG=$SKETCH_FOLDER/config/arduino.h
+
+BOARD=generic
+FLASH_SIZE=1M64
+FLASH_MODE=dio
+DEVICE=SONOFF
+
+rm -rf $BUILD_PATH
+mkdir -p $BUILD_PATH
+mv $CONFIG $CONFIG.backup
+echo "#define $DEVICE" > $CONFIG
+
+$IDE_PATH/arduino-builder \
+    -compile \
+    -warnings=none \
+    -hardware $IDE_PATH/hardware \
+    -hardware $PACKAGES \
+    -tools $IDE_PATH/tools-builder \
+    -tools $IDE_PATH/hardware/tools/avr \
+    -tools $PACKAGES \
+    -built-in-libraries $IDE_PATH/libraries \
+    -libraries .piolibdeps \
+    -fqbn=esp8266:esp8266:$BOARD:CpuFrequency=80,FlashFreq=40,FlashMode=$FLASH_MODE,UploadSpeed=115200,FlashSize=$FLASH_SIZE,ResetMethod=ck,Debug=Disabled,DebugLevel=None____  \
+    -ide-version=10801 \
+    -build-path $BUILD_PATH \
+    -prefs=build.warn_data_percentage=75 \
+    -prefs=runtime.tools.esptool.path=$PACKAGES/esp8266/tools/esptool/0.4.9 \
+    -prefs=runtime.tools.xtensa-lx106-elf-gcc.path=$PACKAGES/esp8266/tools/xtensa-lx106-elf-gcc/1.20.0-26-gb404fb9-2 \
+    -prefs=runtime.tools.mkspiffs.path=$PACKAGES/esp8266/tools/mkspiffs/0.1.2 \
+    $SKETCH_FOLDER
+
+mv $CONFIG.backup $CONFIG

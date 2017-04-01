@@ -36,8 +36,106 @@ const gulpif = require('gulp-if');
 const inline = require('gulp-inline');
 const inlineImages = require('gulp-css-base64');
 const favicon = require('gulp-base64-favicon');
+const ini = require('ini');
+const util = require('gulp-util');
+const colors = require('colors');
+const format = require('util').format;
+const exec = require('child_process').exec;
+const spawn = require( 'child_process' ).spawn;
 
 const dataFolder = 'espurna/data/';
+const boards = {
+    'esp01_1m': 'generic',
+    'd1_mini': 'd1_mini'
+};
+const flashsizes = {
+    'esp01_1m': '1M64',
+    'd1_mini': '4M3M'
+};
+const config = ini.parse(fs.readFileSync('./platformio.ini', 'utf-8'));
+const buildCommand = '%s/arduino-builder -compile -hardware %s/hardware -hardware %s -tools %s/tools-builder -tools %s/hardware/tools/avr -tools %s -built-in-libraries %s/libraries -libraries .piolibdeps -fqbn=esp8266:esp8266:%s:CpuFrequency=80,UploadSpeed=921600,FlashSize=%s -build-path %s -warnings=none %s'
+
+var getEnvironments = function() {
+    var environments = [];
+    Object.keys(config).forEach(function(key) {
+        if ((/^env:/).test(key) && (/-debug$/).test(key)) {
+            environments.push(key.substring(4,key.length-6));
+        };
+    });
+    return environments;
+}
+
+var runCmd = function(cmd, args, callBack) {
+    var spawn = require('child_process').spawn;
+    var child = spawn(cmd, args);
+    var resp = "";
+    child.stdout.on('data', function (buffer) { resp += buffer.toString() });
+    child.stdout.on('end', function() { callBack(resp) });
+}
+
+var buildEnvironment = function(environment) {
+
+    console.log(colors.cyan("Building environment '" + environment + "'"));
+
+    var data = config['env:' + environment + '-debug'];
+    var board = boards[data.board];
+    var flashsize = flashsizes[data.board];
+
+    var command = format(buildCommand,
+        config.arduino.ide_path,
+        config.arduino.ide_path,
+        config.arduino.arduino_packages,
+        config.arduino.ide_path,
+        config.arduino.ide_path,
+        config.arduino.arduino_packages,
+        config.arduino.ide_path,
+        board,
+        flashsize,
+        config.arduino.build_path,
+        config.arduino.sketch_folder
+    );
+
+    console.log(command);
+
+    fs.rename(config.arduino.config_file, config.arduino.config_file + '.backup', function() {
+
+        var wstream = fs.createWriteStream(config.arduino.config_file);
+        data.build_flags.split(' ').forEach(function(flag) {
+            if (flag.indexOf('-D') == 0) {
+                wstream.write('#define ' + flag.substring(2) + '\n');
+            }
+        });
+        wstream.end();
+
+        exec(command, function(error, stdout, stderr) {
+            console.log(stdout);
+            if (error) console.log(colors.red(error));
+            fs.rename(config.arduino.config_file + '.backup', config.arduino.config_file);
+        });
+
+    });
+
+}
+
+gulp.task('arduino', function() {
+
+    var environments = getEnvironments();
+
+    if (typeof util.env.all == 'undefined') {
+        if (typeof util.env.e == 'undefined') {
+            console.log("Usage: gulp arduino [--all | -e <environment>]");
+            return;
+        } else if (environments.indexOf(util.env.e) >= 0) {
+            environments = [util.env.e];
+        } else {
+            console.log("Environment '"+ util.env.e + "' does not exist!");
+            return;
+        }
+    }
+
+    environments.forEach(buildEnvironment);
+
+});
 
 gulp.task('clean', function() {
     del([ dataFolder + '*']);
